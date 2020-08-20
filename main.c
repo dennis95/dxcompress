@@ -218,7 +218,9 @@ static int processOperand(const char* filename) {
         status = 1;
     } else {
 #if HAVE_FCHOWN
-        fchown(output, inputStat.st_uid, inputStat.st_gid);
+        if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
+            warn("cannot set ownership for '%s'", outputName);
+        }
 #endif
         fchmod(output, inputStat.st_mode);
         struct timespec ts[2] = { inputStat.st_atim, inputStat.st_mtim };
