@@ -1,0 +1,16 @@
+autom4te.cache/
+config.cache
+config.h
+config.h.in
+config.h.in~
+config.log
+config.status
+configure
+confdefs.h
+conftest
+conftest.c
+conftest.o
+Makefile
+compress
+*.o
+*.Z

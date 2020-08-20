@@ -1,0 +1,50 @@
+# Copyright (c) 2020 Dennis Wölfing
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+CC = @CC@
+CFLAGS = @CFLAGS@
+CPPFLAGS = @CPPFLAGS@ -I.
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
+OBJ = lzw.o main.o
+
+all: compress
+
+compress: $(OBJ)
+	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
+
+.c.o:
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+$(OBJ): config.h lzw.h Makefile
+
+install: compress
+	install -D compress $(DESTDIR)$(bindir)/compress
+
+clean:
+	rm -f compress $(OBJ)
+
+distclean: clean
+	rm -rf autom4te.cache
+	rm -f config.cache config.h config.h.in~ config.status config.log Makefile
+
+.PHONY: all install clean distclean
