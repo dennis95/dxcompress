@@ -175,12 +175,16 @@ static int processOperand(const char* filename) {
         if (writeToStdout) {
             output = 1;
         } else {
-            output = open(outputName, O_WRONLY | O_CREAT | O_NOFOLLOW |
-                    (force ? O_TRUNC : O_EXCL), 0666);
-            if (output < 0 && errno == EEXIST) {
+            if (force) {
+                unlink(outputName);
+            }
+            output = open(outputName, O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL,
+                    0666);
+            if (output < 0 && errno == EEXIST && !force) {
                 if (getConfirmation(outputName)) {
+                    unlink(outputName);
                     output = open(outputName,
-                            O_WRONLY | O_CREAT | O_NOFOLLOW | O_TRUNC, 0666);
+                            O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
                 } else {
                     errno = EEXIST;
                 }
@@ -188,16 +192,6 @@ static int processOperand(const char* filename) {
             if (output < 0) {
                 warn("cannot create file '%s'", outputName);
                 close(input);
-                free(allocatedName);
-                return 1;
-            }
-            struct stat outputStat;
-            fstat(input, &outputStat);
-            if (!S_ISREG(outputStat.st_mode)) {
-                warnx("cannot create file '%s': File exists and is not regular",
-                        inputName);
-                close(input);
-                close(output);
                 free(allocatedName);
                 return 1;
             }
@@ -211,7 +205,8 @@ static int processOperand(const char* filename) {
     int result = decompress ? lzwDecompress(input, output, &ratio) :
             lzwCompress(input, output, bits, &ratio);
     if (result != RESULT_OK) {
-        warn("failed to %scompress '%s': %s", decompress ? "de" : "", inputName,
+        warnx("failed to %scompress '%s': %s", decompress ? "de" : "",
+                inputName,
                 result == RESULT_FORMAT_ERROR ? "file format error" :
                 result == RESULT_READ_ERROR ? "read error" :
                 result == RESULT_WRITE_ERROR ? "write error" : "unknown error");
