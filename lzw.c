@@ -381,10 +381,7 @@ static int lzwDecompress(int input, int output, double* ratio,
         readStatus = readCode(input, &code, &state);
         if (readStatus == -1) goto readError;
         if (readStatus == 0) break;
-        if (code > nextFree) {
-            warnx("code %d bigger than %zu", code, nextFree);
-            break;
-        }
+        if (code > nextFree) goto formatError;
         if (blockCompress && code == CLEAR_CODE) {
             readStatus = discardPadding(input, &state);
             if (readStatus == -1) goto readError;
