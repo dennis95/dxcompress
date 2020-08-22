@@ -28,16 +28,29 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "lzw.h"
+#include "algorithm.h"
 
+static const struct algorithm* algorithms[] = {
+    // LZW must be the first entry in this list.
+    &algoLzw,
+    NULL
+};
+
+static const struct algorithm* getAlgorithm(const char* name);
 static bool getConfirmation(const char* filename);
+static const struct algorithm* handleExtensions(const char* filename,
+        const char** inputName, const char** outputName);
+static const struct algorithm* probe(int input, unsigned char* buffer,
+        size_t* bufferUsed, size_t bufferSize);
 static int processOperand(const char* filename);
 
+static const struct algorithm* algorithm;
 static unsigned long bits = 16;
 static bool decompress = false;
 static bool force = false;
 static bool verbose = false;
 static bool writeToStdout = false;
+static char* allocatedName;
 
 int main(int argc, char* argv[]) {
     struct option longopts[] = {
@@ -52,8 +65,10 @@ int main(int argc, char* argv[]) {
         { 0, 0, 0, 0 }
     };
 
+    const char* algorithmName = "lzw";
+
     int c;
-    while ((c = getopt_long(argc, argv, "b:cdfhvV", longopts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "b:cdfhm:vV", longopts, NULL)) != -1) {
         switch (c) {
         case 'b': {
             char* end;
@@ -76,10 +91,14 @@ int main(int argc, char* argv[]) {
 "  -c, --stdout             write output to stdout\n"
 "  -f, --force              force compression\n"
 "  -h, --help               display this help\n"
+"  -m ALGO                  use the ALGO algorithm for compression\n"
 "  -v, --verbose            print filenames and compression ratios\n"
 "  -V, --version            display version info\n",
 argv[0]);
             return 0;
+        case 'm':
+            algorithmName = optarg;
+            break;
         case 'v':
             verbose = true;
             break;
@@ -88,6 +107,13 @@ argv[0]);
             return 0;
         case '?':
             return 1;
+        }
+    }
+
+    if (!decompress) {
+        algorithm = getAlgorithm(algorithmName);
+        if (!algorithm) {
+            errx(1, "unknown compression algorithm '%s'", algorithmName);
         }
     }
 
@@ -107,6 +133,22 @@ argv[0]);
     return status;
 }
 
+static const struct algorithm* getAlgorithm(const char* name) {
+    size_t nameLength = strlen(name);
+    for (size_t i = 0; algorithms[i]; i++) {
+        const char* names = algorithms[i]->names;
+        while (*names) {
+            size_t length = strcspn(names, ",");
+            if (length == nameLength && strncmp(name, names, length) == 0) {
+                return algorithms[i];
+            }
+            names += length;
+            if (*names) names++;
+        }
+    }
+    return NULL;
+}
+
 static bool getConfirmation(const char* filename) {
     if (!isatty(0)) return false;
     fprintf(stderr, "File '%s' already exists, overwrite? ", filename);
@@ -118,10 +160,86 @@ static bool getConfirmation(const char* filename) {
     return response == 'y' || response == 'Y';
 }
 
+static size_t reverse_strcspn(const char* s, const char* set) {
+    const char* current = NULL;
+    while (*set) {
+        const char* p = strrchr(s, *set);
+        if (p && (!current || p > current)) {
+            current = p;
+        }
+        set++;
+    }
+    return current ? (size_t) (current - s) : strlen(s);
+}
+
+static const struct algorithm* handleExtensions(const char* filename,
+        const char** inputName, const char** outputName) {
+    size_t nameWithoutExtLength = reverse_strcspn(filename, ".-_");
+    if (filename[nameWithoutExtLength]) {
+        const char* extension = &filename[nameWithoutExtLength + 1];
+        size_t extLength = strlen(extension);
+        for (size_t i = 0; algorithms[i]; i++) {
+            const char* extensions = algorithms[i]->extensions;
+            while (*extensions) {
+                size_t length = strcspn(extensions, ",:");
+                if (length == extLength && strncmp(extension, extensions,
+                        length) == 0) {
+                    *inputName = filename;
+                    if (extensions[length] == ':') {
+                        const char* newExt = extensions + extLength + 1;
+                        size_t newExtLength = strcspn(newExt, ",");
+                        allocatedName = malloc(nameWithoutExtLength +
+                                newExtLength + 2);
+                        if (!allocatedName) err(1, "malloc");
+                        *stpncpy(stpcpy(stpncpy(allocatedName, filename,
+                                nameWithoutExtLength), "."), newExt,
+                                newExtLength) = '\0';
+                    } else {
+                        allocatedName = strndup(filename, nameWithoutExtLength);
+                        if (!allocatedName) err(1, "strdup");
+                    }
+
+                    *outputName = allocatedName;
+                    return algorithms[i];
+                }
+                extensions += strcspn(extensions, ",");
+                if (*extensions) extensions++;
+            }
+        }
+    }
+
+    allocatedName = malloc(strlen(filename) + 3);
+    if (!allocatedName) err(1, "malloc");
+    stpcpy(stpcpy(allocatedName, filename), ".Z");
+    *inputName = allocatedName;
+    *outputName = filename;
+    return algorithms[0];
+}
+
+static const struct algorithm* probe(int input, unsigned char* buffer,
+        size_t* bufferUsed, size_t bufferSize) {
+    while (bufferSize > 0) {
+        ssize_t bytesRead = read(input, buffer + *bufferUsed, bufferSize);
+        if (bytesRead < 0) {
+            *bufferUsed = -1;
+            return NULL;
+        }
+        if (bytesRead == 0) break;
+        *bufferUsed += bytesRead;
+        bufferSize -= bytesRead;
+    }
+    for (size_t i = 0; algorithms[i]; i++) {
+        if (algorithms[i]->probe(buffer, *bufferUsed)) {
+            return algorithms[i];
+        }
+    }
+    return NULL;
+}
+
 static int processOperand(const char* filename) {
     const char* inputName = filename;
     const char* outputName = NULL;
-    char* allocatedName = NULL;
+    allocatedName = NULL;
     int input;
     int output;
     int status = 0;
@@ -134,27 +252,29 @@ static int processOperand(const char* filename) {
     } else {
         if (!decompress) {
             if (!writeToStdout) {
-                allocatedName = malloc(strlen(filename) + 3);
+                size_t extensionLength = strcspn(algorithm->extensions, ",");
+                allocatedName = malloc(strlen(filename) + extensionLength + 2);
                 if (!allocatedName) err(1, "malloc");
-                stpcpy(stpcpy(allocatedName, filename), ".Z");
+                *stpncpy(stpcpy(stpcpy(allocatedName, filename), "."),
+                        algorithm->extensions, extensionLength) = '\0';
                 outputName = allocatedName;
             }
         } else {
             size_t length = strlen(filename);
-
-            if (writeToStdout && access(filename, F_OK) == 0) {
+            bool fileExists = access(filename, F_OK) == 0;
+            if (writeToStdout && fileExists) {
                 // Use the filename as is.
-            } else if (length <= 2 || filename[length - 2] != '.' ||
-                    filename[length - 1] != 'Z') {
+            } else if (!fileExists && (length <= 2 ||
+                    filename[length - 2] != '.' ||
+                    filename[length - 1] != 'Z')) {
                 allocatedName = malloc(length + 3);
                 if (!allocatedName) err(1, "malloc");
                 stpcpy(stpcpy(allocatedName, filename), ".Z");
                 inputName = allocatedName;
                 outputName = filename;
-            } else if (!writeToStdout) {
-                allocatedName = strndup(filename, length - 2);
-                if (!allocatedName) err(1, "strdup");
-                outputName = allocatedName;
+                algorithm = algorithms[0];
+            } else {
+                algorithm = handleExtensions(filename, &inputName, &outputName);
             }
         }
 
@@ -201,15 +321,36 @@ static int processOperand(const char* filename) {
     if (verbose) {
         fprintf(stderr, "%s: ", inputName);
     }
+
+    unsigned char buffer[6];
+    size_t bufferUsed = 0;
+    int result = RESULT_OK;
+    if (output == 1 && decompress) {
+        algorithm = probe(input, buffer, &bufferUsed, sizeof(buffer));
+        if (!algorithm) {
+            result = bufferUsed == (size_t) -1 ? RESULT_READ_ERROR :
+                    RESULT_UNRECOGNIZED_FORMAT;
+        }
+    }
+
     double ratio;
-    int result = decompress ? lzwDecompress(input, output, &ratio) :
-            lzwCompress(input, output, bits, &ratio);
+    if (algorithm) {
+        if (decompress) {
+            result = algorithm->decompress(input, output, &ratio, buffer,
+                    bufferUsed);
+        } else {
+            result = algorithm->compress(input, output, bits, &ratio);
+        }
+    }
+
     if (result != RESULT_OK) {
         warnx("failed to %scompress '%s': %s", decompress ? "de" : "",
                 inputName,
                 result == RESULT_FORMAT_ERROR ? "file format error" :
                 result == RESULT_READ_ERROR ? "read error" :
-                result == RESULT_WRITE_ERROR ? "write error" : "unknown error");
+                result == RESULT_WRITE_ERROR ? "write error" :
+                result == RESULT_UNRECOGNIZED_FORMAT ? "unrecognized format" :
+                "unknown error");
         status = 1;
     } else {
 #if HAVE_FCHOWN

@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "lzw.h"
+#include "algorithm.h"
 
 /*
 POSIX just says that compress must use the adaptive Lempel-Ziv algorithm (LZW).
@@ -73,6 +73,20 @@ always 0. This is certainly a bug in the original compress implementation, but
 it needs to be handled specially to ensure compatibility.
 */
 
+static int lzwCompress(int input, int output, unsigned char maxbits,
+        double* ratio);
+static int lzwDecompress(int input, int output, double* ratio,
+        const unsigned char* buffer, size_t bufferSize);
+static bool lzwProbe(const unsigned char* buffer, size_t bufferSize);
+
+const struct algorithm algoLzw = {
+    .names = "lzw",
+    .extensions = "Z,taz:tar",
+    .compress = lzwCompress,
+    .decompress = lzwDecompress,
+    .probe = lzwProbe
+};
+
 #define MAGIC1 0x1F
 #define MAGIC2 0x9D
 #define CLEAR_CODE 256
@@ -80,6 +94,10 @@ it needs to be handled specially to ensure compatibility.
 #define CHECK_INTERVAL 5000
 #define BUFFER_SIZE (4096 * 8)
 #define DICT_OFFSET 257
+
+static bool lzwProbe(const unsigned char* buffer, size_t bufferSize) {
+    return bufferSize >= 3 && buffer[0] == MAGIC1 && buffer[1] == MAGIC2;
+}
 
 struct state {
     double ratio; // for compress only
@@ -131,7 +149,8 @@ static size_t findIndex(struct HashDict* dict, uint16_t prev, unsigned char c) {
     return index;
 }
 
-int lzwCompress(int input, int output, unsigned char maxbits, double* ratio) {
+static int lzwCompress(int input, int output, unsigned char maxbits,
+        double* ratio) {
     struct state state;
     state.ratio = 0.0;
     state.inputBytes = 1;
@@ -311,15 +330,18 @@ static int readBuffer(int input, struct state* state);
 static int readCode(int input, uint16_t* code, struct state* state);
 static int discardPadding(int input, struct state* state);
 
-int lzwDecompress(int input, int output, double* ratio) {
+static int lzwDecompress(int input, int output, double* ratio,
+        const unsigned char* buffer, size_t bufferSize) {
     struct state state;
     state.inputBytes = 3;
     state.outputBytes = 0;
     state.bytesInGroup = 0;
     state.bufferOffset = 3;
-    state.inputSize = 0;
     state.currentBits = 9;
     state.bitOffset = 0;
+
+    memcpy(state.buffer, buffer, bufferSize);
+    state.inputSize = bufferSize;
 
     while (state.inputSize < 3) {
         ssize_t amount = read(input, state.buffer,

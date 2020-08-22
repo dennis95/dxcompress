@@ -35,7 +35,7 @@ compress: $(OBJ)
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(OBJ): config.h lzw.h Makefile
+$(OBJ): algorithm.h config.h Makefile
 
 install: compress
 	install -D compress $(DESTDIR)$(bindir)/compress

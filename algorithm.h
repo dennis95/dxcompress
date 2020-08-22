@@ -13,21 +13,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* lzw.h
- * Lempel-Ziv-Welch compression.
+/* algorithm.h
+ * Compression algorithms.
  */
 
-#ifndef LZW_H
-#define LZW_H
+#ifndef ALGORITHM_H
+#define ALGORITHM_H
 
 enum {
     RESULT_OK,
     RESULT_READ_ERROR,
     RESULT_WRITE_ERROR,
     RESULT_FORMAT_ERROR,
+    RESULT_UNRECOGNIZED_FORMAT,
 };
 
-int lzwCompress(int input, int output, unsigned char maxbits, double* ratio);
-int lzwDecompress(int input, int output, double* ratio);
+struct algorithm {
+    // Names of this algorithm separated by commas.
+    const char* names;
+    // File extensions separated by commas. Entries using the format A:B will
+    // cause extension A to be replaced by extension B when decompressing.
+    const char* extensions;
+    int (*compress)(int input, int output, unsigned char maxbits,
+            double* ratio);
+    int (*decompress)(int input, int output, double* ratio,
+            const unsigned char* buffer, size_t bufferSize);
+    bool (*probe)(const unsigned char* buffer, size_t bufferSize);
+};
+
+extern const struct algorithm algoLzw;
 
 #endif
