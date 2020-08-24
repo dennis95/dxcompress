@@ -73,8 +73,8 @@ always 0. This is certainly a bug in the original compress implementation, but
 it needs to be handled specially to ensure compatibility.
 */
 
-static int lzwCompress(int input, int output, unsigned char maxbits,
-        double* ratio);
+static bool lzwCheckLevel(int level);
+static int lzwCompress(int input, int output, int maxbits, double* ratio);
 static int lzwDecompress(int input, int output, double* ratio,
         const unsigned char* buffer, size_t bufferSize);
 static bool lzwProbe(const unsigned char* buffer, size_t bufferSize);
@@ -82,6 +82,8 @@ static bool lzwProbe(const unsigned char* buffer, size_t bufferSize);
 const struct algorithm algoLzw = {
     .names = "lzw",
     .extensions = "Z,taz:tar",
+    .defaultLevel = 16,
+    .checkLevel = lzwCheckLevel,
     .compress = lzwCompress,
     .decompress = lzwDecompress,
     .probe = lzwProbe
@@ -94,6 +96,10 @@ const struct algorithm algoLzw = {
 #define CHECK_INTERVAL 5000
 #define BUFFER_SIZE (4096 * 8)
 #define DICT_OFFSET 257
+
+static bool lzwCheckLevel(int level) {
+    return 9 <= level && level <= 16;
+}
 
 static bool lzwProbe(const unsigned char* buffer, size_t bufferSize) {
     return bufferSize >= 3 && buffer[0] == MAGIC1 && buffer[1] == MAGIC2;
@@ -113,7 +119,6 @@ struct state {
 };
 
 static bool checkRatio(struct state* state);
-static ssize_t writeAll(int fd, const void* buffer, size_t size);
 static bool writeCode(int output, uint16_t code, struct state* state);
 static bool writePadding(int output, struct state* state);
 
@@ -149,8 +154,7 @@ static size_t findIndex(struct HashDict* dict, uint16_t prev, unsigned char c) {
     return index;
 }
 
-static int lzwCompress(int input, int output, unsigned char maxbits,
-        double* ratio) {
+static int lzwCompress(int input, int output, int maxbits, double* ratio) {
     struct state state;
     state.ratio = 0.0;
     state.inputBytes = 1;
@@ -307,16 +311,6 @@ static bool writePadding(int output, struct state* state) {
     if (writeAll(output, zeroes, padding) < 0) return false;
     state->outputBytes += padding;
     return true;
-}
-
-static ssize_t writeAll(int fd, const void* buffer, size_t size) {
-    size_t written = 0;
-    while (written < size) {
-        ssize_t result = write(fd, (char*) buffer + written, size - written);
-        if (result < 0) return -1;
-        written += result;
-    }
-    return written;
 }
 
 struct dict {

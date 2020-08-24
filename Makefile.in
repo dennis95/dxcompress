@@ -25,7 +25,7 @@ prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = @bindir@
 
-OBJ = lzw.o main.o
+OBJ = deflate.o lzw.o main.o
 
 all: compress
 

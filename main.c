@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,7 @@
 static const struct algorithm* algorithms[] = {
     // LZW must be the first entry in this list.
     &algoLzw,
+    &algoDeflate,
     NULL
 };
 
@@ -45,9 +47,9 @@ static const struct algorithm* probe(int input, unsigned char* buffer,
 static int processOperand(const char* filename);
 
 static const struct algorithm* algorithm;
-static unsigned long bits = 16;
 static bool decompress = false;
 static bool force = false;
+static int level = -1;
 static bool verbose = false;
 static bool writeToStdout = false;
 static char* allocatedName;
@@ -68,12 +70,15 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = "lzw";
 
     int c;
-    while ((c = getopt_long(argc, argv, "b:cdfhm:vV", longopts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "b:cdfghm:vV", longopts, NULL)) != -1) {
         switch (c) {
         case 'b': {
             char* end;
-            bits = strtoul(optarg, &end, 10);
-            if (*end) err(1, "invalid bits value: '%s'", optarg);
+            unsigned long value = strtoul(optarg, &end, 10);
+            if (*end || value > INT_MAX) {
+                errx(1, "invalid compression level: '%s'", optarg);
+            }
+            level = value;
         } break;
         case 'c':
             writeToStdout = true;
@@ -84,12 +89,16 @@ int main(int argc, char* argv[]) {
         case 'f':
             force = true;
             break;
+        case 'g':
+            algorithmName = "gzip";
+            break;
         case 'h':
             printf("Usage: %s [OPTIONS] [FILE...]\n"
-"  -b BITS                  use at most BITS bits in a code\n"
+"  -b LEVEL                 set the compression level\n"
 "  -d, --decompress         decompress files\n"
 "  -c, --stdout             write output to stdout\n"
 "  -f, --force              force compression\n"
+"  -g                       use the gzip algorithm for compression\n"
 "  -h, --help               display this help\n"
 "  -m ALGO                  use the ALGO algorithm for compression\n"
 "  -v, --verbose            print filenames and compression ratios\n"
@@ -115,10 +124,11 @@ argv[0]);
         if (!algorithm) {
             errx(1, "unknown compression algorithm '%s'", algorithmName);
         }
-    }
-
-    if (bits < 9 || bits > 16) {
-        errx(1, "invalid bits value: '%lu'", bits);
+        if (level == -1) {
+            level = algorithm->defaultLevel;
+        } else if (!algorithm->checkLevel(level)) {
+            errx(1, "invalid compression level: '%d'", level);
+        }
     }
 
     int status = 0;
@@ -339,7 +349,7 @@ static int processOperand(const char* filename) {
             result = algorithm->decompress(input, output, &ratio, buffer,
                     bufferUsed);
         } else {
-            result = algorithm->compress(input, output, bits, &ratio);
+            result = algorithm->compress(input, output, level, &ratio);
         }
     }
 
@@ -350,7 +360,8 @@ static int processOperand(const char* filename) {
                 result == RESULT_READ_ERROR ? "read error" :
                 result == RESULT_WRITE_ERROR ? "write error" :
                 result == RESULT_UNRECOGNIZED_FORMAT ? "unrecognized format" :
-                "unknown error");
+                result == RESULT_UNIMPLEMENTED_FORMAT ?
+                "file format unimplemented" : "unknown error");
         status = 1;
     } else {
 #if HAVE_FCHOWN
@@ -399,4 +410,14 @@ static int processOperand(const char* filename) {
     }
     free(allocatedName);
     return status;
+}
+
+ssize_t writeAll(int fd, const void* buffer, size_t size) {
+    size_t written = 0;
+    while (written < size) {
+        ssize_t result = write(fd, (char*) buffer + written, size - written);
+        if (result < 0) return -1;
+        written += result;
+    }
+    return written;
 }

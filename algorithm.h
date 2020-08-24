@@ -20,12 +20,16 @@
 #ifndef ALGORITHM_H
 #define ALGORITHM_H
 
+#include <stdbool.h>
+#include <sys/types.h>
+
 enum {
     RESULT_OK,
     RESULT_READ_ERROR,
     RESULT_WRITE_ERROR,
     RESULT_FORMAT_ERROR,
     RESULT_UNRECOGNIZED_FORMAT,
+    RESULT_UNIMPLEMENTED_FORMAT,
 };
 
 struct algorithm {
@@ -34,13 +38,17 @@ struct algorithm {
     // File extensions separated by commas. Entries using the format A:B will
     // cause extension A to be replaced by extension B when decompressing.
     const char* extensions;
-    int (*compress)(int input, int output, unsigned char maxbits,
-            double* ratio);
+    int defaultLevel;
+    bool (*checkLevel)(int level);
+    int (*compress)(int input, int output, int level, double* ratio);
     int (*decompress)(int input, int output, double* ratio,
             const unsigned char* buffer, size_t bufferSize);
     bool (*probe)(const unsigned char* buffer, size_t bufferSize);
 };
 
+extern const struct algorithm algoDeflate;
 extern const struct algorithm algoLzw;
+
+ssize_t writeAll(int fd, const void* buffer, size_t size);
 
 #endif

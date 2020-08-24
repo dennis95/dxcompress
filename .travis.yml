@@ -1,5 +1,10 @@
 language: c
 
+addons:
+  apt:
+    packages:
+    - zlib1g-dev
+
 script:
   - ./autogen.sh
   - ./configure
