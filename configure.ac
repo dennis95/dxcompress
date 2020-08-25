@@ -24,5 +24,6 @@ DX_CHECK_CFLAGS([-Wall])
 DX_CHECK_CFLAGS([-Wextra])
 DX_CHECK_CFLAGS([-Werror=implicit-function-declaration])
 
+AC_SUBST([cross_compiling])
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

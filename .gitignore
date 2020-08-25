@@ -14,3 +14,4 @@ Makefile
 compress
 *.o
 *.Z
+tests/

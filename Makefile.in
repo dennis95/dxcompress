@@ -25,6 +25,8 @@ prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = @bindir@
 
+cross_compiling = @cross_compiling@
+
 OBJ = deflate.o lzw.o main.o
 
 all: compress
@@ -37,14 +39,23 @@ compress: $(OBJ)
 
 $(OBJ): algorithm.h config.h Makefile
 
+check: check-$(cross_compiling)
+
+check-yes:
+	@echo "Cannot run tests when cross-compiling."
+
+check-no: compress
+	COMPRESS='$(PWD)/compress' $(srcdir)/test-compress.sh
+
 install: compress
 	install -D compress $(DESTDIR)$(bindir)/compress
 
 clean:
 	rm -f compress $(OBJ)
+	rm -rf tests
 
 distclean: clean
 	rm -rf autom4te.cache
 	rm -f config.cache config.h config.h.in~ config.status config.log Makefile
 
-.PHONY: all install clean distclean
+.PHONY: all check check-yes check-no install clean distclean
