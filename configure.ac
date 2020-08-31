@@ -9,6 +9,8 @@ AC_PROG_CC
 AC_USE_SYSTEM_EXTENSIONS
 AC_SYS_LARGEFILE
 
+AC_PROG_SED
+
 AC_ARG_WITH([zlib], [AS_HELP_STRING([--without-zlib],
  [disable gzip support through zlib])], [], [with_zlib=yes])
 AS_IF([test "$with_zlib" != no],

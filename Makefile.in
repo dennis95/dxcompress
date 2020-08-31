@@ -20,6 +20,7 @@ CFLAGS = @CFLAGS@
 CPPFLAGS = @CPPFLAGS@ -I.
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
+SED = @SED@
 
 prefix = @prefix@
 exec_prefix = @exec_prefix@
@@ -29,10 +30,16 @@ cross_compiling = @cross_compiling@
 
 OBJ = deflate.o lzw.o main.o
 
-all: compress
+all: compress uncompress zcat
 
 compress: $(OBJ)
 	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
+
+uncompress: uncompress.in Makefile
+	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' uncompress.in > uncompress
+
+zcat: zcat.in Makefile
+	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' zcat.in > zcat
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
@@ -47,11 +54,13 @@ check-yes:
 check-no: compress
 	COMPRESS='$(PWD)/compress' $(srcdir)/test-compress.sh
 
-install: compress
+install: compress uncompress zcat
 	install -D compress $(DESTDIR)$(bindir)/compress
+	install -D uncompress $(DESTDIR)$(bindir)/uncompress
+	install -D zcat $(DESTDIR)$(bindir)/zcat
 
 clean:
-	rm -f compress $(OBJ)
+	rm -f compress uncompress zcat $(OBJ)
 	rm -rf tests
 
 distclean: clean

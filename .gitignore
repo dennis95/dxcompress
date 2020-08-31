@@ -12,6 +12,8 @@ conftest.c
 conftest.o
 Makefile
 compress
+uncompress
+zcat
 *.o
 *.Z
 tests/
