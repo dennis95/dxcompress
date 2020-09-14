@@ -25,6 +25,9 @@ SED = @SED@
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = @bindir@
+datarootdir = @datarootdir@
+mandir = @mandir@
+man1dir = $(mandir)/man1
 
 cross_compiling = @cross_compiling@
 
@@ -54,7 +57,13 @@ check-yes:
 check-no: compress
 	COMPRESS='$(PWD)/compress' $(srcdir)/test-compress.sh
 
-install: compress uncompress zcat
+install: install-exec install-data
+
+install-data: install-man
+install-man:
+	install -Dm644 compress.1 $(DESTDIR)$(man1dir)/compress.1
+
+install-exec: compress uncompress zcat
 	install -D compress $(DESTDIR)$(bindir)/compress
 	install -D uncompress $(DESTDIR)$(bindir)/uncompress
 	install -D zcat $(DESTDIR)$(bindir)/zcat
@@ -67,4 +76,5 @@ distclean: clean
 	rm -rf autom4te.cache
 	rm -f config.cache config.h config.h.in~ config.status config.log Makefile
 
-.PHONY: all check check-yes check-no install clean distclean
+.PHONY: all check check-yes check-no clean distclean
+.PHONY: install install-data install-exec install-man

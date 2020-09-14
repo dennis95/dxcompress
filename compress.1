@@ -1,0 +1,206 @@
+.Dd September 14, 2020
+.Dt COMPRESS 1
+.Os Dennix
+.Sh NAME
+.Nm compress ,
+.Nm uncompress ,
+.Nm zcat
+.Nd compress and decompress data
+.Sh SYNOPSIS
+.Nm
+.Op Fl cdfghvV
+.Op Fl b Ar level
+.Op Fl m Ar algo
+.Op Ar files...
+.Nm uncompress
+.Op Fl cfv
+.Op Ar files...
+.Nm zcat
+.Op Ar files...
+.Sh DESCRIPTION
+The
+.Nm
+utility compresses or decompresses files.
+Multiple compression algorithms are supported.
+.Pp
+When compressing, each operand is taken as an input file to be compressed.
+When an operand is named
+.Cm - ,
+or if no operands are given, the standard input is used as the input file and
+the compressed data is written to the standard output.
+Unless the
+.Fl c
+option is specified, the compressed output is written into a file named like the
+input file but with the suffix associated to the algorithm appended.
+If the compression does not result in a size reduction and the
+.Fl f
+option is not given, the output file is unlinked and the input file is not
+unlinked.
+Otherwise, the input file is unlinked.
+.Pp
+The following compression algorithms are supported and can be selected using the
+.Fl m
+option:
+.Bl -tag -width Ds
+.It Cm lzw
+The Lempel-Ziv-Welch (LZW) algorithm.
+The suffix associated with this algorithm is
+.Pa .Z .
+Additionally when decompressing, the suffix
+.Pa .taz
+is supported which will be replaced by
+.Pa .tar
+to produce the output file name.
+This algorithm is used by default.
+.It Cm deflate
+The DEFLATE (gzip) algorithm.
+The suffix associated with this algorithm is
+.Pa .gz .
+Additionally when decompressing, the suffix
+.Pa .tgz
+is supported which will be replaced by
+.Pa .tar
+to produce the output file name.
+.It Cm gzip
+Synonym for
+.Cm deflate .
+.El
+.Pp
+When decompressing
+.Pq Fl d ,
+each operand is taken as an input file to be decompressed.
+When an operand is named
+.Cm - ,
+or if no operands are given, the standard input is used as the input file and
+the decompressed data is written to the standard output.
+If an operand has no suffix associated with a supported algorithm, or if no file
+named by the operand exists and the operand does not end with
+.Pa .Z ,
+the suffix
+.Pa .Z
+is appended to the operand and the resulting name is used as the input file.
+Unless the
+.Fl c
+option is specified, the algorithm used for decompression is the one associated
+with the suffix of the input file.
+When the
+.Fl c
+option is specified, the algorithm is instead determined by the file contents.
+.Pp
+The
+.Nm uncompress
+utility is used for decompression only and is equivalent to
+.Nm
+.Fl d .
+The
+.Nm zcat
+utility decompresses files to the standard output and is equivalent to
+.Nm
+.Fl cd .
+Both
+.Nm uncompress
+and
+.Nm zcat
+support all options supported by
+.Nm ,
+but any options that do not make sense for decompression will be ignored.
+.Pp
+The following options are supported by
+.Nm :
+.Bl -tag -width Ds
+.It Fl b Ar level
+Set the compression level.
+The meaning depends on the compression algorithm used.
+Usually a higher
+.Ar level
+achieves higher compression but might be slower.
+For the LZW algorithm,
+.Ar level
+specifies the maximum number of bits to use in a code.
+The values must be between 9 and 16 inclusive.
+For the DEFLATE algorithm,
+.Ar level
+must be between 1 and 9 inclusive.
+.It Fl c , -stdout , -to-stdout
+Write the result of compression or decompression to the standard output and do
+not unlink the input files.
+For decompression, when the
+.Fl c
+option is used the algorithm is determined only by the file contents, not by the
+file extension.
+.It Fl d , -decompress , -uncompress
+Decompress files instead of compressing them.
+Unless the
+.Fl c
+option is also given, the algorithm to use for decompression is determined by
+the file extension.
+.It Fl f , -force
+Always produce an output file even if compression does not result in a reduced
+size.
+Also overwrite existing output files without asking for confirmation.
+.It Fl g
+Use the DEFLATE (gzip) algorithm for compression.
+Equivalent to
+.Fl m Cm gzip .
+.It Fl h , -help
+Print a short help message and exit.
+.It Fl m Ar algo
+For compression use the compression algorithm specified by
+.Ar algo .
+.It Fl v , -verbose
+For each file print the size reduction or expansion of the file.
+.It Fl V , -version
+Print version information and exit.
+.El
+.Sh EXIT STATUS
+The
+.Nm
+utility exits 0 if all input files were successfully compressed or decompressed.
+It exits 1 or >2 when an error occured.
+It exits 2 when at least one files was not compressed because compression would
+have resulted in an increase of size.
+.Pp
+.Ex -std uncompress zcat
+.Sh SEE ALSO
+.Xr gzip 1 ,
+.Xr tar 1
+.Sh STANDARDS
+The
+.St -p1003.1-2008
+standard specifies the
+.Nm ,
+.Nm uncompress
+and
+.Nm zcat
+utilities as part of the XSI option.
+Only the
+.Fl bcfv
+options and the Lempel-Ziv-Welch algorithm with between 9 and 14 bits per code
+are standardized.
+.Pp
+The next revision of the POSIX.1 standard will additionally standardize the
+.Fl dgm
+options, add the DEFLATE algorithm and allow 15 and 16 bits per code for the LZW
+algorithm.
+.Pp
+All other options are extensions to the standard.
+.Pp
+The DEFLATE compression algorithm and the gzip file format are standardized in
+RFC1951 and RFC1952.
+.Sh HISTORY
+The
+.Nm
+utility was first implemented by
+.An Spencer Thomas
+in 1984.
+The first
+.Nm
+implementation that supported the DEFLATE algorithm was the version that
+appeared in
+.Ox 2.1
+in 1997.
+.Pp
+The implementation documented in this manual page began development in 2020 with
+the goal of creating a modern
+.Nm
+implementation that conforms to the new requirements of POSIX.1-202x draft 1.
