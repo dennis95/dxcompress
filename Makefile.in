@@ -39,10 +39,10 @@ compress: $(OBJ)
 	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
 
 uncompress: uncompress.in Makefile
-	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' uncompress.in > uncompress
+	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' $(srcdir)/uncompress.in > uncompress
 
 zcat: zcat.in Makefile
-	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' zcat.in > zcat
+	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' $(srcdir)/zcat.in > zcat
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
@@ -61,7 +61,7 @@ install: install-exec install-data
 
 install-data: install-man
 install-man:
-	install -Dm644 compress.1 $(DESTDIR)$(man1dir)/compress.1
+	install -Dm644 $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/compress.1
 
 install-exec: compress uncompress zcat
 	install -D compress $(DESTDIR)$(bindir)/compress
