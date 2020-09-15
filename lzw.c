@@ -74,8 +74,9 @@ it needs to be handled specially to ensure compatibility.
 */
 
 static bool lzwCheckLevel(int level);
-static int lzwCompress(int input, int output, int maxbits, double* ratio);
-static int lzwDecompress(int input, int output, double* ratio,
+static int lzwCompress(int input, int output, int maxbits,
+        struct fileinfo* info);
+static int lzwDecompress(int input, int output, struct fileinfo* info,
         const unsigned char* buffer, size_t bufferSize);
 static bool lzwProbe(const unsigned char* buffer, size_t bufferSize);
 
@@ -154,7 +155,8 @@ static size_t findIndex(struct HashDict* dict, uint16_t prev, unsigned char c) {
     return index;
 }
 
-static int lzwCompress(int input, int output, int maxbits, double* ratio) {
+static int lzwCompress(int input, int output, int maxbits,
+        struct fileinfo* info) {
     struct state state;
     state.ratio = 0.0;
     state.inputBytes = 1;
@@ -175,7 +177,7 @@ static int lzwCompress(int input, int output, int maxbits, double* ratio) {
         if (writeAll(output, state.buffer, state.bufferOffset) < 0) {
             return RESULT_WRITE_ERROR;
         }
-        *ratio = -1.0;
+        info->ratio = -1.0;
         return RESULT_OK;
     }
     size_t inputSize = amount;
@@ -243,7 +245,7 @@ static int lzwCompress(int input, int output, int maxbits, double* ratio) {
     if (writeAll(output, state.buffer, state.bufferOffset) < 0) {
         return RESULT_WRITE_ERROR;
     }
-    *ratio = 1.0 - (double) state.outputBytes / (double) state.inputBytes;
+    info->ratio = 1.0 - (double) state.outputBytes / (double) state.inputBytes;
     return RESULT_OK;
 
 writeError:
@@ -324,7 +326,7 @@ static int readBuffer(int input, struct state* state);
 static int readCode(int input, uint16_t* code, struct state* state);
 static int discardPadding(int input, struct state* state);
 
-static int lzwDecompress(int input, int output, double* ratio,
+static int lzwDecompress(int input, int output, struct fileinfo* info,
         const unsigned char* buffer, size_t bufferSize) {
     struct state state;
     state.inputBytes = 3;
@@ -456,7 +458,7 @@ static int lzwDecompress(int input, int output, double* ratio,
         return RESULT_WRITE_ERROR;
     }
 
-    *ratio = 1.0 - (double) state.inputBytes / (double) state.outputBytes;
+    info->ratio = 1.0 - (double) state.inputBytes / (double) state.outputBytes;
     return RESULT_OK;
 
 formatError:

@@ -21,6 +21,7 @@
 #define ALGORITHM_H
 
 #include <stdbool.h>
+#include <time.h>
 #include <sys/types.h>
 
 enum {
@@ -32,6 +33,12 @@ enum {
     RESULT_UNIMPLEMENTED_FORMAT,
 };
 
+struct fileinfo {
+    const char* name;
+    struct timespec modificationTime;
+    double ratio;
+};
+
 struct algorithm {
     // Names of this algorithm separated by commas.
     const char* names;
@@ -40,8 +47,8 @@ struct algorithm {
     const char* extensions;
     int defaultLevel;
     bool (*checkLevel)(int level);
-    int (*compress)(int input, int output, int level, double* ratio);
-    int (*decompress)(int input, int output, double* ratio,
+    int (*compress)(int input, int output, int level, struct fileinfo* info);
+    int (*decompress)(int input, int output, struct fileinfo* info,
             const unsigned char* buffer, size_t bufferSize);
     bool (*probe)(const unsigned char* buffer, size_t bufferSize);
 };

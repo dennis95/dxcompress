@@ -258,7 +258,6 @@ static int processOperand(const char* filename) {
         input = 0;
         output = 1;
         inputName = "stdin";
-        fstat(input, &inputStat);
     } else {
         if (!decompress) {
             if (!writeToStdout) {
@@ -343,13 +342,20 @@ static int processOperand(const char* filename) {
         }
     }
 
-    double ratio;
+    struct fileinfo info;
+    if (input == 0) {
+        info.name = NULL;
+        clock_gettime(CLOCK_REALTIME, &info.modificationTime);
+    } else {
+        info.name = inputName;
+        info.modificationTime = inputStat.st_mtim;
+    }
     if (algorithm) {
         if (decompress) {
-            result = algorithm->decompress(input, output, &ratio, buffer,
+            result = algorithm->decompress(input, output, &info, buffer,
                     bufferUsed);
         } else {
-            result = algorithm->compress(input, output, level, &ratio);
+            result = algorithm->compress(input, output, level, &info);
         }
     }
 
@@ -363,7 +369,7 @@ static int processOperand(const char* filename) {
                 result == RESULT_UNIMPLEMENTED_FORMAT ?
                 "file format unimplemented" : "unknown error");
         status = 1;
-    } else {
+    } else if (output != 1) {
 #if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
             warn("cannot set ownership for '%s'", outputName);
@@ -383,7 +389,7 @@ static int processOperand(const char* filename) {
 
     if (output != 1 && status == 1) {
         unlink(outputName);
-    } else if (output != 1 && ratio < 0.0 && !force && !decompress) {
+    } else if (output != 1 && info.ratio < 0.0 && !force && !decompress) {
         unlink(outputName);
         if (verbose) {
             fprintf(stderr, "No compression - file unchanged\n");
@@ -398,9 +404,9 @@ static int processOperand(const char* filename) {
             }
         } else if (verbose) {
             if (decompress) {
-                fprintf(stderr, "Expansion %.2f%%", ratio * 100.0);
+                fprintf(stderr, "Expansion %.2f%%", info.ratio * 100.0);
             } else {
-                fprintf(stderr, "Compression %.2f%%", ratio * 100.0);
+                fprintf(stderr, "Compression %.2f%%", info.ratio * 100.0);
             }
             if (output != 1) {
                 fprintf(stderr, " - replaced with '%s'", outputName);

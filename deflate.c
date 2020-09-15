@@ -27,8 +27,9 @@
 #endif
 
 static bool gzipCheckLevel(int level);
-static int gzipCompress(int input, int output, int level, double* ratio);
-static int gzipDecompress(int input, int output, double* ratio,
+static int gzipCompress(int input, int output, int level,
+        struct fileinfo* info);
+static int gzipDecompress(int input, int output, struct fileinfo* info,
         const unsigned char* buffer, size_t bufferSize);
 static bool gzipProbe(const unsigned char* buffer, size_t bufferSize);
 
@@ -54,7 +55,8 @@ static bool gzipProbe(const unsigned char* buffer, size_t bufferSize) {
     return bufferSize >= 6 && buffer[0] == MAGIC1 && buffer[1] == MAGIC2;
 }
 
-static int gzipCompress(int input, int output, int level, double* ratio) {
+static int gzipCompress(int input, int output, int level,
+        struct fileinfo* info) {
 #if WITH_ZLIB
     z_stream stream;
     stream.zalloc = Z_NULL;
@@ -63,7 +65,21 @@ static int gzipCompress(int input, int output, int level, double* ratio) {
             Z_DEFAULT_STRATEGY);
     if (status != Z_OK) errx(1, "deflateInit2");
 
-    // TODO: Add filename and modification time into the gzip header.
+    // Store metadata in the gzip header.
+    gz_header header;
+    header.text = 0;
+    time_t time = info->modificationTime.tv_sec;
+    if (time < 0 || time > 0xFFFFFFFF) {
+        header.time = 0;
+    } else {
+        header.time = time;
+    }
+    header.os = 3; // Unix
+    header.extra = Z_NULL;
+    header.name = (Bytef*) info->name;
+    header.comment = Z_NULL;
+    header.hcrc = 0;
+    deflateSetHeader(&stream, &header);
 
     unsigned char inputBuffer[BUFFER_SIZE];
     unsigned char outputBuffer[BUFFER_SIZE];
@@ -106,16 +122,16 @@ static int gzipCompress(int input, int output, int level, double* ratio) {
         stream.avail_out = sizeof(outputBuffer);
     } while (status != Z_STREAM_END);
 
-    *ratio = 1.0 - (double) stream.total_out / (double) stream.total_in;
+    info->ratio = 1.0 - (double) stream.total_out / (double) stream.total_in;
     deflateEnd(&stream);
     return RESULT_OK;
 #else
-    (void) input; (void) output; (void) level; (void) ratio;
+    (void) input; (void) output; (void) level; (void) info;
     return RESULT_UNIMPLEMENTED_FORMAT;
 #endif
 }
 
-static int gzipDecompress(int input, int output, double* ratio,
+static int gzipDecompress(int input, int output, struct fileinfo* info,
         const unsigned char* buffer, size_t bufferSize) {
 #if WITH_ZLIB
     unsigned char inputBuffer[BUFFER_SIZE];
@@ -177,12 +193,12 @@ static int gzipDecompress(int input, int output, double* ratio,
         inflateEnd(&stream);
         return RESULT_WRITE_ERROR;
     }
-    *ratio = 1.0 - (double) stream.total_in / (double) stream.total_out;
+    info->ratio = 1.0 - (double) stream.total_in / (double) stream.total_out;
     inflateEnd(&stream);
 
     return RESULT_OK;
 #else
-    (void) input; (void) output; (void) ratio; (void) buffer; (void) bufferSize;
+    (void) input; (void) output; (void) info; (void) buffer; (void) bufferSize;
     return RESULT_UNIMPLEMENTED_FORMAT;
 #endif
 }
