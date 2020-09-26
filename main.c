@@ -18,6 +18,7 @@
  */
 
 #include <config.h>
+#include <dirent.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -41,24 +42,29 @@ static const struct algorithm* algorithms[] = {
 static const struct algorithm* getAlgorithm(const char* name);
 static bool getConfirmation(const char* filename);
 static const struct algorithm* handleExtensions(const char* filename,
-        const char** inputName, const char** outputName);
+        const char** inputName, const char** outputName, char** allocatedName);
 static const struct algorithm* probe(int input, unsigned char* buffer,
         size_t* bufferUsed, size_t bufferSize);
+static int processDirectory(int parentFd, const char* dirname,
+        const char* pathname);
+static int processFile(int dirFd, const char* inputName, const char* outputName,
+        const char* inputPath, const char* outputPath);
 static int processOperand(const char* filename);
 
 static const struct algorithm* algorithm;
 static bool decompress = false;
 static bool force = false;
 static int level = -1;
+static bool recursive = false;
 static bool verbose = false;
 static bool writeToStdout = false;
-static char* allocatedName;
 
 int main(int argc, char* argv[]) {
     struct option longopts[] = {
         { "decompress", no_argument, 0, 'd' },
         { "force", no_argument, 0, 'f' },
         { "help", no_argument, 0, 'h' },
+        { "recursive", no_argument, 0, 'r' },
         { "stdout", no_argument, 0, 'c' },
         { "to-stdout", no_argument, 0, 'c' },
         { "uncompress", no_argument, 0, 'd' },
@@ -70,7 +76,8 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = "lzw";
 
     int c;
-    while ((c = getopt_long(argc, argv, "b:cdfghm:vV", longopts, NULL)) != -1) {
+    const char* opts = "b:cdfghm:rvV";
+    while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 'b': {
             char* end;
@@ -101,12 +108,16 @@ int main(int argc, char* argv[]) {
 "  -g                       use the gzip algorithm for compression\n"
 "  -h, --help               display this help\n"
 "  -m ALGO                  use the ALGO algorithm for compression\n"
+"  -r, --recursive          recursively (de)compress files in directories\n"
 "  -v, --verbose            print filenames and compression ratios\n"
 "  -V, --version            display version info\n",
 argv[0]);
             return 0;
         case 'm':
             algorithmName = optarg;
+            break;
+        case 'r':
+            recursive = true;
             break;
         case 'v':
             verbose = true;
@@ -138,7 +149,7 @@ argv[0]);
 
     for (int i = optind; i < argc; i++) {
         int result = processOperand(argv[i]);
-        if (status != 1) status = result;
+        if (status == 0 || result == 1) status = result;
     }
     return status;
 }
@@ -183,7 +194,7 @@ static size_t reverse_strcspn(const char* s, const char* set) {
 }
 
 static const struct algorithm* handleExtensions(const char* filename,
-        const char** inputName, const char** outputName) {
+        const char** inputName, const char** outputName, char** allocatedName) {
     size_t nameWithoutExtLength = reverse_strcspn(filename, ".-_");
     if (filename[nameWithoutExtLength]) {
         const char* extension = &filename[nameWithoutExtLength + 1];
@@ -194,22 +205,23 @@ static const struct algorithm* handleExtensions(const char* filename,
                 size_t length = strcspn(extensions, ",:");
                 if (length == extLength && strncmp(extension, extensions,
                         length) == 0) {
-                    *inputName = filename;
+                    if (inputName) *inputName = filename;
                     if (extensions[length] == ':') {
                         const char* newExt = extensions + extLength + 1;
                         size_t newExtLength = strcspn(newExt, ",");
-                        allocatedName = malloc(nameWithoutExtLength +
+                        *allocatedName = malloc(nameWithoutExtLength +
                                 newExtLength + 2);
-                        if (!allocatedName) err(1, "malloc");
-                        *stpncpy(stpcpy(stpncpy(allocatedName, filename,
+                        if (!*allocatedName) err(1, "malloc");
+                        *stpncpy(stpcpy(stpncpy(*allocatedName, filename,
                                 nameWithoutExtLength), "."), newExt,
                                 newExtLength) = '\0';
                     } else {
-                        allocatedName = strndup(filename, nameWithoutExtLength);
-                        if (!allocatedName) err(1, "strdup");
+                        *allocatedName = strndup(filename,
+                                nameWithoutExtLength);
+                        if (!*allocatedName) err(1, "strdup");
                     }
 
-                    *outputName = allocatedName;
+                    *outputName = *allocatedName;
                     return algorithms[i];
                 }
                 extensions += strcspn(extensions, ",");
@@ -218,12 +230,15 @@ static const struct algorithm* handleExtensions(const char* filename,
         }
     }
 
-    allocatedName = malloc(strlen(filename) + 3);
-    if (!allocatedName) err(1, "malloc");
-    stpcpy(stpcpy(allocatedName, filename), ".Z");
-    *inputName = allocatedName;
-    *outputName = filename;
-    return algorithms[0];
+    if (inputName) {
+        *allocatedName = malloc(strlen(filename) + 3);
+        if (!*allocatedName) err(1, "malloc");
+        stpcpy(stpcpy(*allocatedName, filename), ".Z");
+        *inputName = *allocatedName;
+        *outputName = filename;
+        return algorithms[0];
+    }
+    return NULL;
 }
 
 static const struct algorithm* probe(int input, unsigned char* buffer,
@@ -246,89 +261,134 @@ static const struct algorithm* probe(int input, unsigned char* buffer,
     return NULL;
 }
 
-static int processOperand(const char* filename) {
-    const char* inputName = filename;
-    const char* outputName = NULL;
-    allocatedName = NULL;
-    int input;
-    int output;
+static int processDirectory(int parentFd, const char* dirname,
+        const char* pathname) {
+    int fd = openat(parentFd, dirname, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    if (fd < 0) {
+        warn("cannot open '%s'", pathname);
+        return 1;
+    }
+    DIR* dir = fdopendir(fd);
+    if (!dir) err(1, "fdopendir");
+
     int status = 0;
-    struct stat inputStat;
-    if (strcmp(filename, "-") == 0) {
-        input = 0;
-        output = 1;
-        inputName = "stdin";
-    } else {
-        if (!decompress) {
-            if (!writeToStdout) {
+    errno = 0;
+    struct dirent* dirent = readdir(dir);
+    while (dirent) {
+        const char* name = dirent->d_name;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+            errno = 0;
+            dirent = readdir(dir);
+            continue;
+        }
+
+        size_t inputNameLength = strlen(name);
+        char* inputPath = malloc(strlen(pathname) + inputNameLength + 2);
+        if (!inputPath) err(1, "malloc");
+        stpcpy(stpcpy(stpcpy(inputPath, pathname), "/"), name);
+
+        struct stat st;
+        if (fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW) == 0 &&
+                S_ISDIR(st.st_mode)) {
+            int result = processDirectory(fd, name, inputPath);
+            if (status == 0 || result == 1) status = result;
+        } else {
+            const char* outputName;
+            char* allocatedName = NULL;
+            if (decompress) {
+                algorithm = handleExtensions(name, NULL, &outputName,
+                        &allocatedName);
+            } else {
+                // Skip files that already have the right extension so we don't
+                // compress the same file multiple times.
                 size_t extensionLength = strcspn(algorithm->extensions, ",");
-                allocatedName = malloc(strlen(filename) + extensionLength + 2);
+                if (inputNameLength > extensionLength + 1 &&
+                        name[inputNameLength - extensionLength - 1] == '.' &&
+                        strncmp(&name[inputNameLength - extensionLength],
+                        algorithm->extensions, extensionLength) == 0) {
+                    free(inputPath);
+                    errno = 0;
+                    dirent = readdir(dir);
+                    continue;
+                }
+
+                allocatedName = malloc(inputNameLength + extensionLength + 2);
                 if (!allocatedName) err(1, "malloc");
-                *stpncpy(stpcpy(stpcpy(allocatedName, filename), "."),
+                *stpncpy(stpcpy(stpcpy(allocatedName, name), "."),
                         algorithm->extensions, extensionLength) = '\0';
                 outputName = allocatedName;
             }
-        } else {
-            size_t length = strlen(filename);
-            bool fileExists = access(filename, F_OK) == 0;
-            if (writeToStdout && fileExists) {
-                // Use the filename as is.
-            } else if (!fileExists && (length <= 2 ||
-                    filename[length - 2] != '.' ||
-                    filename[length - 1] != 'Z')) {
-                allocatedName = malloc(length + 3);
-                if (!allocatedName) err(1, "malloc");
-                stpcpy(stpcpy(allocatedName, filename), ".Z");
-                inputName = allocatedName;
-                outputName = filename;
-                algorithm = algorithms[0];
-            } else {
-                algorithm = handleExtensions(filename, &inputName, &outputName);
+
+            if (algorithm) {
+                char* outputPath = malloc(strlen(pathname) + strlen(outputName)
+                        + 2);
+                if (!outputPath) err(1, "malloc");
+                stpcpy(stpcpy(stpcpy(outputPath, pathname), "/"), outputName);
+                int result = processFile(fd, name, outputName, inputPath,
+                        outputPath);
+                if (status == 0 || result == 1) status = result;
+                free(outputPath);
             }
+            free(allocatedName);
         }
 
-        input = open(inputName, O_RDONLY | O_NOFOLLOW);
+        free(inputPath);
+        errno = 0;
+        dirent = readdir(dir);
+    }
+
+    if (errno) {
+        warn("readdir");
+        status = 1;
+    }
+
+    closedir(dir);
+    return status;
+}
+
+static int processFile(int dirFd, const char* inputName, const char* outputName,
+        const char* inputPath, const char* outputPath) {
+    int input = 0;
+    int output = 1;
+    struct stat inputStat;
+    if (inputName) {
+        input = openat(dirFd, inputName, O_RDONLY | O_NOFOLLOW);
         if (input < 0) {
-            warn("cannot open '%s'", inputName);
-            free(allocatedName);
+            warn("cannot open '%s'", inputPath);
             return 1;
         }
         fstat(input, &inputStat);
         if (!S_ISREG(inputStat.st_mode)) {
-            warnx("cannot open '%s': Not a regular file", inputName);
+            warnx("cannot open '%s': Not a regular file", inputPath);
             close(input);
-            free(allocatedName);
             return 1;
         }
 
-        if (writeToStdout) {
-            output = 1;
-        } else {
+        if (!writeToStdout) {
             if (force) {
-                unlink(outputName);
+                unlinkat(dirFd, outputName, 0);
             }
-            output = open(outputName, O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL,
-                    0666);
+            output = openat(dirFd, outputName,
+                    O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
             if (output < 0 && errno == EEXIST && !force) {
-                if (getConfirmation(outputName)) {
-                    unlink(outputName);
-                    output = open(outputName,
+                if (getConfirmation(outputPath)) {
+                    unlinkat(dirFd, outputName, 0);
+                    output = openat(dirFd, outputName,
                             O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
                 } else {
                     errno = EEXIST;
                 }
             }
             if (output < 0) {
-                warn("cannot create file '%s'", outputName);
+                warn("cannot create file '%s'", outputPath);
                 close(input);
-                free(allocatedName);
                 return 1;
             }
         }
     }
 
     if (verbose) {
-        fprintf(stderr, "%s: ", inputName);
+        fprintf(stderr, "%s: ", inputPath);
     }
 
     unsigned char buffer[6];
@@ -359,9 +419,10 @@ static int processOperand(const char* filename) {
         }
     }
 
+    int status = 0;
     if (result != RESULT_OK) {
         warnx("failed to %scompress '%s': %s", decompress ? "de" : "",
-                inputName,
+                inputPath,
                 result == RESULT_FORMAT_ERROR ? "file format error" :
                 result == RESULT_READ_ERROR ? "read error" :
                 result == RESULT_WRITE_ERROR ? "write error" :
@@ -372,7 +433,7 @@ static int processOperand(const char* filename) {
     } else if (output != 1) {
 #if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
-            warn("cannot set ownership for '%s'", outputName);
+            warn("cannot set ownership for '%s'", outputPath);
         }
 #endif
         fchmod(output, inputStat.st_mode);
@@ -388,18 +449,19 @@ static int processOperand(const char* filename) {
     }
 
     if (output != 1 && status == 1) {
-        unlink(outputName);
+        unlinkat(dirFd, outputName, 0);
     } else if (output != 1 && info.ratio < 0.0 && !force && !decompress) {
-        unlink(outputName);
+        unlinkat(dirFd, outputName, 0);
         if (verbose) {
             fprintf(stderr, "No compression - file unchanged\n");
         }
         status = 2;
     } else if (status == 0) {
-        if (output != 1 && unlink(inputName) < 0 && errno == EPERM) {
-            warn("cannot unlink '%s'", inputName);
+        if (output != 1 && unlinkat(dirFd, inputName, 0) < 0 &&
+                errno == EPERM) {
+            warn("cannot unlink '%s'", inputPath);
             if (!force) {
-                unlink(outputName);
+                unlinkat(dirFd, outputName, 0);
                 status = 1;
             }
         } else if (verbose) {
@@ -409,11 +471,68 @@ static int processOperand(const char* filename) {
                 fprintf(stderr, "Compression %.2f%%", info.ratio * 100.0);
             }
             if (output != 1) {
-                fprintf(stderr, " - replaced with '%s'", outputName);
+                fprintf(stderr, " - replaced with '%s'", outputPath);
             }
             fputc('\n', stderr);
         }
     }
+    return status;
+}
+
+static int processOperand(const char* filename) {
+    const char* inputName = filename;
+    const char* outputName = NULL;
+    char* allocatedName = NULL;
+    bool isDirectory = false;
+    if (strcmp(filename, "-") == 0) {
+        inputName = NULL;
+    } else {
+        struct stat st;
+        bool fileExists = true;
+        if (lstat(filename, &st) < 0) {
+            fileExists = false;
+        } else if (recursive && S_ISDIR(st.st_mode)) {
+            isDirectory = true;
+        }
+
+        if (!isDirectory && !decompress) {
+            if (!writeToStdout) {
+                size_t extensionLength = strcspn(algorithm->extensions, ",");
+                allocatedName = malloc(strlen(filename) + extensionLength + 2);
+                if (!allocatedName) err(1, "malloc");
+                *stpncpy(stpcpy(stpcpy(allocatedName, filename), "."),
+                        algorithm->extensions, extensionLength) = '\0';
+                outputName = allocatedName;
+            }
+        } else if (!isDirectory) {
+            size_t length = strlen(filename);
+            if (writeToStdout && fileExists) {
+                // Use the filename as is.
+            } else if (!fileExists && (length <= 2 ||
+                    filename[length - 2] != '.' ||
+                    filename[length - 1] != 'Z')) {
+                allocatedName = malloc(length + 3);
+                if (!allocatedName) err(1, "malloc");
+                stpcpy(stpcpy(allocatedName, filename), ".Z");
+                inputName = allocatedName;
+                outputName = filename;
+                algorithm = algorithms[0];
+            } else {
+                algorithm = handleExtensions(filename, &inputName, &outputName,
+                        &allocatedName);
+            }
+        }
+    }
+
+    int status;
+    if (isDirectory) {
+        status = processDirectory(AT_FDCWD, inputName, inputName);
+    } else {
+        status = processFile(AT_FDCWD, inputName, outputName,
+                inputName ? inputName : "stdin",
+                outputName ? outputName : "stdout");
+    }
+
     free(allocatedName);
     return status;
 }

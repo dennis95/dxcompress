@@ -22,6 +22,7 @@ fi
 
 # Select which features to test.
 : ${test_posix202x=yes}
+: ${test_recursive=yes}
 
 compress() {
     command $COMPRESS "$@"
@@ -276,6 +277,57 @@ cmp -s foo compare || fail $LINENO "Decompressed file contents are incorrect"
 rm -f foo foo.Z compare
 
 fi # test_posix202x
+
+if test $test_recursive = yes; then
+######################
+# Test the -r option #
+######################
+
+# Test handling of empty directories
+mkdir empty
+msg="$(compress empty 2>&1 >/dev/null)" && fail $LINENO "Compression of a directory succeeded without -r"
+test -n "$msg" || fail $LINENO "Diagnostic message missing"
+compress -r empty || fail $LINENO "Compression of an empty directory failed"
+compress -dr empty || fail $LINENO "Decompression of an empty directory failed"
+rmdir empty
+
+# Check compression of directories
+mkdir -p dir1/dir2
+compressibleFile > dir1/foo
+compressibleFile > dir1/dir2/bar
+compress -r dir1 || fail $LINENO "Compression of a directory failed"
+test ! -e dir1/foo || fail $LINENO "Input file dir1/foo was not unlinked"
+test -e dir1/foo.Z || fail $LINENO "Output file dir1/foo.Z was not created"
+test ! -e dir1/dir2/bar || fail $LINENO "Input file dir1/dir2/bar was not unlinked"
+test -e dir1/dir2/bar.Z || fail $LINENO "Output file dir1/dir2/bar.Z was not created"
+
+# Check decompression of directories
+compress -dr dir1
+test -e dir1/foo || fail $LINENO "Output file dir1/foo was not created"
+test ! -e dir1/foo.Z || fail $LINENO "Input file dir1/foo.Z was not unlinked"
+test -e dir1/dir2/bar || fail $LINENO "Output file dir1/dir2/bar was not created"
+test ! -e dir1/dir2/bar.Z || fail $LINENO "Input file dir1/dir2/bar.Z was not unlinked"
+
+# Check that uncompressing an already uncompressed directory works
+compress -dr dir1 || fail $LINENO "Decompressing an already decompressed directory failed"
+
+# Check that compressing a partially compressed directory works
+compress dir1/foo || fail $LINENO "Compression failed"
+compress -r dir1 || fail $LINENO "Compression of a partially compressed directory failed"
+test -e dir1/foo.Z || fail $LINENO "File dir1/foo.Z was unlinked"
+test ! -e dir1/foo.Z.Z || fail $LINENO "Compressed file was compressed again"
+test ! -e dir1/dir2/bar || fail $LINENO "Input file dir1/dir2/bar was not unlinked"
+test -e dir1/dir2/bar.Z || fail $LINENO "Output file dir1/dir2/bar.Z was not created"
+
+# Check that decompressing a partially uncompressed directory works
+uncompress dir1/dir2/bar.Z || fail $LINENO "Decompression failed"
+uncompress -r dir1 || fail $LINENO "Decompression of a partially uncompressed directory failed"
+test -e dir1/foo || fail $LINENO "Output file dir1/foo was not created"
+test ! -e dir1/foo.Z || fail $LINENO "Input file dir1/foo.Z was not unlinked"
+test -e dir1/dir2/bar || fail $LINENO "File dir1/dir2/bar was unlinked"
+rm -rf dir1
+
+fi # test_recursive
 
 rm -rf "$testdir"
 

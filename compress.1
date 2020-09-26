@@ -1,4 +1,4 @@
-.Dd September 14, 2020
+.Dd September 26, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,14 +8,15 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl cdfghvV
+.Op Fl cdfghrvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Ar files...
 .Nm uncompress
-.Op Fl cfv
+.Op Fl cfrv
 .Op Ar files...
 .Nm zcat
+.Op Fl rv
 .Op Ar files...
 .Sh DESCRIPTION
 The
@@ -147,6 +148,12 @@ Print a short help message and exit.
 .It Fl m Ar algo
 For compression use the compression algorithm specified by
 .Ar algo .
+.It Fl r , -recursive
+Recursively compress or decompress directories.
+For any given operand that names a directory, all files in that directory are
+compressed or decompressed.
+If a file in a directory already has the file extension associated with the used
+algorithm, that file will be ignored.
 .It Fl v , -verbose
 For each file print the size reduction or expansion of the file.
 .It Fl V , -version
