@@ -19,11 +19,11 @@
 
 #include <config.h>
 #include <dirent.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +43,8 @@ static const struct algorithm* getAlgorithm(const char* name);
 static bool getConfirmation(const char* filename);
 static const struct algorithm* handleExtensions(const char* filename,
         const char** inputName, const char** outputName, char** allocatedName);
+static void outOfMemory(void);
+static void printWarning(const char* format, ...);
 static const struct algorithm* probe(int input, unsigned char* buffer,
         size_t* bufferUsed, size_t bufferSize);
 static int processDirectory(int parentFd, const char* dirname,
@@ -55,11 +57,14 @@ static const struct algorithm* algorithm;
 static bool decompress = false;
 static bool force = false;
 static int level = -1;
+static const char* programName;
 static bool recursive = false;
 static bool verbose = false;
 static bool writeToStdout = false;
 
 int main(int argc, char* argv[]) {
+    programName = argv[0];
+
     struct option longopts[] = {
         { "decompress", no_argument, 0, 'd' },
         { "force", no_argument, 0, 'f' },
@@ -83,7 +88,8 @@ int main(int argc, char* argv[]) {
             char* end;
             unsigned long value = strtoul(optarg, &end, 10);
             if (*end || value > INT_MAX) {
-                errx(1, "invalid compression level: '%s'", optarg);
+                printWarning("invalid compression level: '%s'", optarg);
+                return 1;
             }
             level = value;
         } break;
@@ -133,12 +139,14 @@ argv[0]);
     if (!decompress) {
         algorithm = getAlgorithm(algorithmName);
         if (!algorithm) {
-            errx(1, "unknown compression algorithm '%s'", algorithmName);
+            printWarning("unknown compression algorithm '%s'", algorithmName);
+            return 1;
         }
         if (level == -1) {
             level = algorithm->defaultLevel;
         } else if (!algorithm->checkLevel(level)) {
-            errx(1, "invalid compression level: '%d'", level);
+            printWarning("invalid compression level: '%d'", level);
+            return 1;
         }
     }
 
@@ -211,14 +219,14 @@ static const struct algorithm* handleExtensions(const char* filename,
                         size_t newExtLength = strcspn(newExt, ",");
                         *allocatedName = malloc(nameWithoutExtLength +
                                 newExtLength + 2);
-                        if (!*allocatedName) err(1, "malloc");
+                        if (!*allocatedName) outOfMemory();
                         *stpncpy(stpcpy(stpncpy(*allocatedName, filename,
                                 nameWithoutExtLength), "."), newExt,
                                 newExtLength) = '\0';
                     } else {
                         *allocatedName = strndup(filename,
                                 nameWithoutExtLength);
-                        if (!*allocatedName) err(1, "strdup");
+                        if (!*allocatedName) outOfMemory();
                     }
 
                     *outputName = *allocatedName;
@@ -232,13 +240,28 @@ static const struct algorithm* handleExtensions(const char* filename,
 
     if (inputName) {
         *allocatedName = malloc(strlen(filename) + 3);
-        if (!*allocatedName) err(1, "malloc");
+        if (!*allocatedName) outOfMemory();
         stpcpy(stpcpy(*allocatedName, filename), ".Z");
         *inputName = *allocatedName;
         *outputName = filename;
         return algorithms[0];
     }
     return NULL;
+}
+
+static void outOfMemory(void) {
+    printWarning("out of memory");
+    exit(1);
+}
+
+static void printWarning(const char* format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    fputs(programName, stderr);
+    fputs(": ", stderr);
+    vfprintf(stderr, format, ap);
+    fputc('\n', stderr);
+    va_end(ap);
 }
 
 static const struct algorithm* probe(int input, unsigned char* buffer,
@@ -265,11 +288,14 @@ static int processDirectory(int parentFd, const char* dirname,
         const char* pathname) {
     int fd = openat(parentFd, dirname, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
     if (fd < 0) {
-        warn("cannot open '%s'", pathname);
+        printWarning("cannot open '%s': %s", pathname, strerror(errno));
         return 1;
     }
     DIR* dir = fdopendir(fd);
-    if (!dir) err(1, "fdopendir");
+    if (!dir) {
+        printWarning("cannot open '%s': %s", pathname, strerror(errno));
+        return 1;
+    }
 
     int status = 0;
     errno = 0;
@@ -284,7 +310,7 @@ static int processDirectory(int parentFd, const char* dirname,
 
         size_t inputNameLength = strlen(name);
         char* inputPath = malloc(strlen(pathname) + inputNameLength + 2);
-        if (!inputPath) err(1, "malloc");
+        if (!inputPath) outOfMemory();
         stpcpy(stpcpy(stpcpy(inputPath, pathname), "/"), name);
 
         struct stat st;
@@ -313,7 +339,7 @@ static int processDirectory(int parentFd, const char* dirname,
                 }
 
                 allocatedName = malloc(inputNameLength + extensionLength + 2);
-                if (!allocatedName) err(1, "malloc");
+                if (!allocatedName) outOfMemory();
                 *stpncpy(stpcpy(stpcpy(allocatedName, name), "."),
                         algorithm->extensions, extensionLength) = '\0';
                 outputName = allocatedName;
@@ -322,7 +348,7 @@ static int processDirectory(int parentFd, const char* dirname,
             if (algorithm) {
                 char* outputPath = malloc(strlen(pathname) + strlen(outputName)
                         + 2);
-                if (!outputPath) err(1, "malloc");
+                if (!outputPath) outOfMemory();
                 stpcpy(stpcpy(stpcpy(outputPath, pathname), "/"), outputName);
                 int result = processFile(fd, name, outputName, inputPath,
                         outputPath);
@@ -338,7 +364,7 @@ static int processDirectory(int parentFd, const char* dirname,
     }
 
     if (errno) {
-        warn("readdir");
+        printWarning("readdir: %s", strerror(errno));
         status = 1;
     }
 
@@ -354,12 +380,12 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     if (inputName) {
         input = openat(dirFd, inputName, O_RDONLY | O_NOFOLLOW);
         if (input < 0) {
-            warn("cannot open '%s'", inputPath);
+            printWarning("cannot open '%s': %s", inputPath, strerror(errno));
             return 1;
         }
         fstat(input, &inputStat);
         if (!S_ISREG(inputStat.st_mode)) {
-            warnx("cannot open '%s': Not a regular file", inputPath);
+            printWarning("cannot open '%s': Not a regular file", inputPath);
             close(input);
             return 1;
         }
@@ -380,7 +406,8 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 }
             }
             if (output < 0) {
-                warn("cannot create file '%s'", outputPath);
+                printWarning("cannot create file '%s': %s", outputPath,
+                        strerror(errno));
                 close(input);
                 return 1;
             }
@@ -421,7 +448,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
 
     int status = 0;
     if (result != RESULT_OK) {
-        warnx("failed to %scompress '%s': %s", decompress ? "de" : "",
+        printWarning("failed to %scompress '%s': %s", decompress ? "de" : "",
                 inputPath,
                 result == RESULT_FORMAT_ERROR ? "file format error" :
                 result == RESULT_READ_ERROR ? "read error" :
@@ -439,7 +466,8 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     } else if (output != 1) {
 #if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
-            warn("cannot set ownership for '%s'", outputPath);
+            printWarning("cannot set ownership for '%s': %s", outputPath,
+                    strerror(errno));
         }
 #endif
         fchmod(output, inputStat.st_mode);
@@ -465,7 +493,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     } else if (status == 0) {
         if (output != 1 && unlinkat(dirFd, inputName, 0) < 0 &&
                 errno == EPERM) {
-            warn("cannot unlink '%s'", inputPath);
+            printWarning("cannot unlink '%s': %s", inputPath, strerror(errno));
             if (!force) {
                 unlinkat(dirFd, outputName, 0);
                 status = 1;
@@ -505,7 +533,7 @@ static int processOperand(const char* filename) {
             if (!writeToStdout) {
                 size_t extensionLength = strcspn(algorithm->extensions, ",");
                 allocatedName = malloc(strlen(filename) + extensionLength + 2);
-                if (!allocatedName) err(1, "malloc");
+                if (!allocatedName) outOfMemory();
                 *stpncpy(stpcpy(stpcpy(allocatedName, filename), "."),
                         algorithm->extensions, extensionLength) = '\0';
                 outputName = allocatedName;
@@ -518,7 +546,7 @@ static int processOperand(const char* filename) {
                     filename[length - 2] != '.' ||
                     filename[length - 1] != 'Z')) {
                 allocatedName = malloc(length + 3);
-                if (!allocatedName) err(1, "malloc");
+                if (!allocatedName) outOfMemory();
                 stpcpy(stpcpy(allocatedName, filename), ".Z");
                 inputName = allocatedName;
                 outputName = filename;
