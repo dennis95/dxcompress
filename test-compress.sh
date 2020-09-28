@@ -209,6 +209,18 @@ msg="$(uncompress foo.Z 2>&1 >/dev/null)" && fail $LINENO "Decompression unexpec
 test -n "$msg" || fail $LINENO "Diagnostic message missing"
 rm -f foo foo.Z
 
+# Check that uncompress continues on failure
+compressibleFile > foo
+compress foo || fail $LINENO "Compression failed"
+compressibleFile > bar.Z
+msg="$(uncompress bar.Z foo.Z 2>&1 >/dev/null)" && fail $LINENO "Decompression of an invalid file succeeded"
+test -n "$msg" || fail $LINENO "Diagnostic message missing"
+test -e foo || fail $LINENO "Output file was not created"
+test ! -e foo.Z || fail $LINENO "Input file was not unlinked"
+test ! -e bar || fail $LINENO "Output file was created for invalid input"
+test -e bar.Z || fail $LINENO "Invalid input file was unlinked"
+rm -f foo foo.Z bar bar.Z
+
 if test $test_posix202x = yes; then
 #############################################
 # Test features new in POSIX.1-202x draft 1 #
@@ -275,6 +287,18 @@ mv foo.gz foo.Z
 compress -cd foo.Z > foo || fail $LINENO "Decompression failed"
 cmp -s foo compare || fail $LINENO "Decompressed file contents are incorrect"
 rm -f foo foo.Z compare
+
+# Check that compress continues on failure
+compressibleFile > foo
+compress -g foo || fail $LINENO "Compression failed"
+compressibleFile > bar.gz
+msg="$(uncompress bar.gz foo.gz 2>&1 >/dev/null)" && fail $LINENO "Decompression of an invalid file succeeded"
+test -n "$msg" || fail $LINENO "Diagnostic message missing"
+test -e foo || fail $LINENO "Output file was not created"
+test ! -e foo.gz || fail $LINENO "Input file was not unlinked"
+test ! -e bar || fail $LINENO "Output file was created for invalid input"
+test -e bar.gz || fail $LINENO "Invalid input file was unlinked"
+rm -f foo foo.gz bar bar.gz
 
 fi # test_posix202x
 
