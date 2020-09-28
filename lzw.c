@@ -18,7 +18,6 @@
  */
 
 #include <config.h>
-#include <err.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -183,7 +182,7 @@ static int lzwCompress(int input, int output, int maxbits,
     size_t inputSize = amount;
 
     struct HashDict* dict = calloc(HASHDICT_SIZE, sizeof(struct HashDict));
-    if (!dict) err(1, "malloc");
+    if (!dict) return RESULT_OUT_OF_MEMORY;
 
     size_t dictEntries = 1 << maxbits;
     size_t nextFree = DICT_OFFSET;
@@ -370,7 +369,7 @@ static int lzwDecompress(int input, int output, struct fileinfo* info,
 
     struct dict* dict = malloc((dictEntries - dictOffset) *
             sizeof(struct dict));
-    if (!dict) err(1, "malloc");
+    if (!dict) return RESULT_OUT_OF_MEMORY;
 
     while (true) {
         uint16_t code;

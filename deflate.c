@@ -18,7 +18,6 @@
  */
 
 #include <config.h>
-#include <err.h>
 #include <string.h>
 #include "algorithm.h"
 
@@ -63,7 +62,8 @@ static int gzipCompress(int input, int output, int level,
     stream.zfree = Z_NULL;
     int status = deflateInit2(&stream, level, Z_DEFLATED, 15 + 16, 8,
             Z_DEFAULT_STRATEGY);
-    if (status != Z_OK) errx(1, "deflateInit2");
+    if (status == Z_MEM_ERROR) return RESULT_OUT_OF_MEMORY;
+    if (status != Z_OK) return RESULT_UNKNOWN_ERROR;
 
     // Store metadata in the gzip header.
     gz_header header;
@@ -146,7 +146,8 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
     stream.next_in = inputBuffer;
     stream.avail_in = bufferSize + bytesRead;
     int status = inflateInit2(&stream, 15 + 16);
-    if (status != Z_OK) errx(1, "inflateInit2");
+    if (status == Z_MEM_ERROR) return RESULT_OUT_OF_MEMORY;
+    if (status != Z_OK) return RESULT_UNKNOWN_ERROR;
 
     unsigned char outputBuffer[BUFFER_SIZE];
     stream.next_out = outputBuffer;
@@ -183,11 +184,11 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
         status = inflate(&stream, Z_NO_FLUSH);
         if (status == Z_STREAM_END) {
             endOfStream = true;
-        } else if (status == Z_DATA_ERROR) {
-            inflateEnd(&stream);
-            return RESULT_FORMAT_ERROR;
         } else if (status != Z_OK) {
-            errx(1, "inflate");
+            inflateEnd(&stream);
+            return status == Z_DATA_ERROR ? RESULT_FORMAT_ERROR :
+                    status == Z_MEM_ERROR ? RESULT_OUT_OF_MEMORY :
+                    RESULT_UNKNOWN_ERROR;
         }
     }
 

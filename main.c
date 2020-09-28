@@ -427,8 +427,14 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 result == RESULT_READ_ERROR ? "read error" :
                 result == RESULT_WRITE_ERROR ? "write error" :
                 result == RESULT_UNRECOGNIZED_FORMAT ? "unrecognized format" :
+                result == RESULT_OUT_OF_MEMORY ? "out of memory" :
                 result == RESULT_UNIMPLEMENTED_FORMAT ?
                 "file format unimplemented" : "unknown error");
+        if (result == RESULT_OUT_OF_MEMORY) {
+            // We shouldn't continue if we ran out of memory.
+            if (output != 1) unlinkat(dirFd, outputName, 0);
+            exit(1);
+        }
         status = 1;
     } else if (output != 1) {
 #if HAVE_FCHOWN
