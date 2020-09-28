@@ -1,2 +1,2 @@
 #! /bin/sh
-@COMPRESS@ -cd "$@"
+@COMPRESS@ --argv0="$0" -cd "$@"

@@ -66,6 +66,7 @@ int main(int argc, char* argv[]) {
     programName = argv[0];
 
     struct option longopts[] = {
+        { "argv0", required_argument, 0, 0 },
         { "decompress", no_argument, 0, 'd' },
         { "force", no_argument, 0, 'f' },
         { "help", no_argument, 0, 'h' },
@@ -84,6 +85,9 @@ int main(int argc, char* argv[]) {
     const char* opts = "b:cdfghm:rvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
+        case 0: // undocumented --argv0 option for internal use only
+            programName = argv[0] = optarg;
+            break;
         case 'b': {
             char* end;
             unsigned long value = strtoul(optarg, &end, 10);
