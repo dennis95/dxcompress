@@ -183,6 +183,9 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
         status = inflate(&stream, Z_NO_FLUSH);
         if (status == Z_STREAM_END) {
             endOfStream = true;
+        } else if (status == Z_DATA_ERROR) {
+            inflateEnd(&stream);
+            return RESULT_FORMAT_ERROR;
         } else if (status != Z_OK) {
             errx(1, "inflate");
         }
