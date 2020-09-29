@@ -79,14 +79,19 @@ int main(int argc, char* argv[]) {
         { 0, 0, 0, 0 }
     };
 
-    const char* algorithmName = "lzw";
+    const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "b:cdfghm:rvV";
+    const char* opts = "123456789b:cdfghm:OrvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
             programName = argv[0] = optarg;
+            break;
+        case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+        case '8': case '9':
+            level = c - '0';
+            if (!algorithmName) algorithmName = "gzip";
             break;
         case 'b': {
             char* end;
@@ -118,6 +123,7 @@ int main(int argc, char* argv[]) {
 "  -g                       use the gzip algorithm for compression\n"
 "  -h, --help               display this help\n"
 "  -m ALGO                  use the ALGO algorithm for compression\n"
+"  -O                       use the lzw algorithm for compression\n"
 "  -r, --recursive          recursively (de)compress files in directories\n"
 "  -v, --verbose            print filenames and compression ratios\n"
 "  -V, --version            display version info\n",
@@ -125,6 +131,9 @@ argv[0]);
             return 0;
         case 'm':
             algorithmName = optarg;
+            break;
+        case 'O':
+            algorithmName = "lzw";
             break;
         case 'r':
             recursive = true;
@@ -141,6 +150,7 @@ argv[0]);
     }
 
     if (!decompress) {
+        if (!algorithmName) algorithmName = "lzw";
         algorithm = getAlgorithm(algorithmName);
         if (!algorithm) {
             printWarning("unknown compression algorithm '%s'", algorithmName);

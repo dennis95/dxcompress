@@ -1,4 +1,4 @@
-.Dd September 26, 2020
+.Dd September 29, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,7 +8,7 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl cdfghrvV
+.Op Fl 123456789cdfghOrvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Ar files...
@@ -109,6 +109,17 @@ but any options that do not make sense for decompression will be ignored.
 The following options are supported by
 .Nm :
 .Bl -tag -width Ds
+.It Fl 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9
+Set the compression level to the number given.
+These options are equivalent to use of the
+.Fl b
+option with the number given as an option argument, except that the DEFLATE
+(gzip) algorithm is used if no compression algorithm was selected explicitly
+using the
+.Fl g , m
+or
+.Fl O
+options.
 .It Fl b Ar level
 Set the compression level.
 The meaning depends on the compression algorithm used.
@@ -148,6 +159,10 @@ Print a short help message and exit.
 .It Fl m Ar algo
 For compression use the compression algorithm specified by
 .Ar algo .
+.It Fl O
+Use the Lempel-Ziv-Welch (LZW) algorithm for compression.
+Equivalent to
+.Fl m Cm lzw .
 .It Fl r , -recursive
 Recursively compress or decompress directories.
 For any given operand that names a directory, all files in that directory are
