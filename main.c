@@ -43,6 +43,8 @@ static const struct algorithm* getAlgorithm(const char* name);
 static bool getConfirmation(const char* filename);
 static const struct algorithm* handleExtensions(const char* filename,
         const char** inputName, const char** outputName, char** allocatedName);
+static int nullDecompress(int input, int output, struct fileinfo* info,
+        const unsigned char* buffer, size_t bufferSize);
 static void outOfMemory(void);
 static void printWarning(const char* format, ...);
 static const struct algorithm* probe(int input, unsigned char* buffer,
@@ -52,6 +54,10 @@ static int processDirectory(int parentFd, const char* dirname,
 static int processFile(int dirFd, const char* inputName, const char* outputName,
         const char* inputPath, const char* outputPath);
 static int processOperand(const char* filename);
+
+static const struct algorithm algoNull = {
+    .decompress = nullDecompress,
+};
 
 static const struct algorithm* algorithm;
 static bool decompress = false;
@@ -263,6 +269,23 @@ static const struct algorithm* handleExtensions(const char* filename,
     return NULL;
 }
 
+static int nullDecompress(int input, int output, struct fileinfo* info,
+        const unsigned char* buffer, size_t bufferSize) {
+    info->ratio = 0.0;
+    ssize_t writtenSize = writeAll(output, buffer, bufferSize);
+    if (writtenSize < 0) return RESULT_WRITE_ERROR;
+
+    while (true) {
+        char readBuffer[8 * 4096];
+        ssize_t readSize = read(input, readBuffer, sizeof(readBuffer));
+        if (readSize == 0) return RESULT_OK;
+        if (readSize < 0) return RESULT_READ_ERROR;
+
+        writtenSize = writeAll(output, readBuffer, readSize);
+        if (writtenSize < 0) return RESULT_WRITE_ERROR;
+    }
+}
+
 static void outOfMemory(void) {
     printWarning("out of memory");
     exit(1);
@@ -295,6 +318,11 @@ static const struct algorithm* probe(int input, unsigned char* buffer,
             return algorithms[i];
         }
     }
+
+    if (decompress && force) {
+        return &algoNull;
+    }
+
     return NULL;
 }
 

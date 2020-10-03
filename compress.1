@@ -1,4 +1,4 @@
-.Dd September 29, 2020
+.Dd October 03, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -150,6 +150,13 @@ the file extension.
 Always produce an output file even if compression does not result in a reduced
 size.
 Also overwrite existing output files without asking for confirmation.
+.Pp
+When used with the
+.Fl c
+and
+.Fl d
+options, any files that are not in a recognized format are written to the
+standard output without change.
 .It Fl g
 Use the DEFLATE (gzip) algorithm for compression.
 Equivalent to
