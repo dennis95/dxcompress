@@ -179,6 +179,12 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
             if (stream.avail_in == 0) break;
             // Reset decompression to support concatenated gzipped files.
             inflateReset(&stream);
+            endOfStream = false;
+        }
+
+        if (stream.avail_in == 0) {
+            inflateEnd(&stream);
+            return RESULT_FORMAT_ERROR;
         }
 
         status = inflate(&stream, Z_NO_FLUSH);
