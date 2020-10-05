@@ -59,10 +59,11 @@ static const struct algorithm algoNull = {
     .decompress = nullDecompress,
 };
 
+enum { MODE_COMPRESS, MODE_DECOMPRESS, MODE_TEST };
 static const struct algorithm* algorithm;
-static bool decompress = false;
 static bool force = false;
 static int level = -1;
+static int mode = MODE_COMPRESS;
 static const char* programName;
 static bool recursive = false;
 static bool verbose = false;
@@ -78,6 +79,7 @@ int main(int argc, char* argv[]) {
         { "help", no_argument, 0, 'h' },
         { "recursive", no_argument, 0, 'r' },
         { "stdout", no_argument, 0, 'c' },
+        { "test", no_argument, 0, 't' },
         { "to-stdout", no_argument, 0, 'c' },
         { "uncompress", no_argument, 0, 'd' },
         { "verbose", no_argument, 0, 'v' },
@@ -88,7 +90,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghm:OrvV";
+    const char* opts = "123456789b:cdfghm:OrtvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
@@ -112,7 +114,7 @@ int main(int argc, char* argv[]) {
             writeToStdout = true;
             break;
         case 'd':
-            decompress = true;
+            mode = MODE_DECOMPRESS;
             break;
         case 'f':
             force = true;
@@ -131,6 +133,7 @@ int main(int argc, char* argv[]) {
 "  -m ALGO                  use the ALGO algorithm for compression\n"
 "  -O                       use the lzw algorithm for compression\n"
 "  -r, --recursive          recursively (de)compress files in directories\n"
+"  -t, --test               check file integrity\n"
 "  -v, --verbose            print filenames and compression ratios\n"
 "  -V, --version            display version info\n",
 argv[0]);
@@ -144,6 +147,9 @@ argv[0]);
         case 'r':
             recursive = true;
             break;
+        case 't':
+            mode = MODE_TEST;
+            break;
         case 'v':
             verbose = true;
             break;
@@ -155,7 +161,7 @@ argv[0]);
         }
     }
 
-    if (!decompress) {
+    if (mode == MODE_COMPRESS) {
         if (!algorithmName) algorithmName = "lzw";
         algorithm = getAlgorithm(algorithmName);
         if (!algorithm) {
@@ -319,7 +325,7 @@ static const struct algorithm* probe(int input, unsigned char* buffer,
         }
     }
 
-    if (decompress && force) {
+    if (mode == MODE_DECOMPRESS && force) {
         return &algoNull;
     }
 
@@ -363,7 +369,7 @@ static int processDirectory(int parentFd, const char* dirname,
         } else {
             const char* outputName;
             char* allocatedName = NULL;
-            if (decompress) {
+            if (mode != MODE_COMPRESS) {
                 algorithm = handleExtensions(name, NULL, &outputName,
                         &allocatedName);
             } else {
@@ -432,7 +438,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
             return 1;
         }
 
-        if (!writeToStdout) {
+        if (!writeToStdout && mode != MODE_TEST) {
             if (force) {
                 unlinkat(dirFd, outputName, 0);
             }
@@ -456,6 +462,8 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         }
     }
 
+    if (mode == MODE_TEST) output = -1;
+
     if (verbose) {
         fprintf(stderr, "%s: ", inputPath);
     }
@@ -463,7 +471,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     unsigned char buffer[6];
     size_t bufferUsed = 0;
     int result = RESULT_OK;
-    if (output == 1 && decompress) {
+    if ((input == 0 || writeToStdout) && mode != MODE_COMPRESS) {
         algorithm = probe(input, buffer, &bufferUsed, sizeof(buffer));
         if (!algorithm) {
             result = bufferUsed == (size_t) -1 ? RESULT_READ_ERROR :
@@ -480,7 +488,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         info.modificationTime = inputStat.st_mtim;
     }
     if (algorithm) {
-        if (decompress) {
+        if (mode != MODE_COMPRESS) {
             result = algorithm->decompress(input, output, &info, buffer,
                     bufferUsed);
         } else {
@@ -490,7 +498,9 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
 
     int status = 0;
     if (result != RESULT_OK) {
-        printWarning("failed to %scompress '%s': %s", decompress ? "de" : "",
+        printWarning("failed to %s '%s': %s",
+                mode == MODE_COMPRESS ? "compress" :
+                mode == MODE_DECOMPRESS ? "decompress" : "verify",
                 inputPath,
                 result == RESULT_FORMAT_ERROR ? "file format error" :
                 result == RESULT_READ_ERROR ? "read error" :
@@ -501,11 +511,11 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 "file format unimplemented" : "unknown error");
         if (result == RESULT_OUT_OF_MEMORY) {
             // We shouldn't continue if we ran out of memory.
-            if (output != 1) unlinkat(dirFd, outputName, 0);
+            if (output != 1 && output != -1) unlinkat(dirFd, outputName, 0);
             exit(1);
         }
         status = 1;
-    } else if (output != 1) {
+    } else if (output != 1 && output != -1) {
 #if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
             printWarning("cannot set ownership for '%s': %s", outputPath,
@@ -520,20 +530,21 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     if (input != 0) {
         close(input);
     }
-    if (output != 1) {
+    if (output != 1 && output != -1) {
         close(output);
     }
 
-    if (output != 1 && status == 1) {
+    if (output != 1 && output != -1 && status == 1) {
         unlinkat(dirFd, outputName, 0);
-    } else if (output != 1 && info.ratio < 0.0 && !force && !decompress) {
+    } else if (output != 1 && info.ratio < 0.0 && !force &&
+            mode == MODE_COMPRESS) {
         unlinkat(dirFd, outputName, 0);
         if (verbose) {
             fprintf(stderr, "No compression - file unchanged\n");
         }
         status = 2;
     } else if (status == 0) {
-        if (output != 1 && unlinkat(dirFd, inputName, 0) < 0 &&
+        if (output != 1 && output != -1 && unlinkat(dirFd, inputName, 0) < 0 &&
                 errno == EPERM) {
             printWarning("cannot unlink '%s': %s", inputPath, strerror(errno));
             if (!force) {
@@ -541,12 +552,14 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 status = 1;
             }
         } else if (verbose) {
-            if (decompress) {
+            if (mode == MODE_DECOMPRESS) {
                 fprintf(stderr, "Expansion %.2f%%", info.ratio * 100.0);
-            } else {
+            } else if (mode == MODE_COMPRESS) {
                 fprintf(stderr, "Compression %.2f%%", info.ratio * 100.0);
+            } else if (mode == MODE_TEST) {
+                fputs("OK", stderr);
             }
-            if (output != 1) {
+            if (output != 1 && output != -1) {
                 fprintf(stderr, " - replaced with '%s'", outputPath);
             }
             fputc('\n', stderr);
@@ -571,7 +584,7 @@ static int processOperand(const char* filename) {
             isDirectory = true;
         }
 
-        if (!isDirectory && !decompress) {
+        if (!isDirectory && mode == MODE_COMPRESS) {
             if (!writeToStdout) {
                 size_t extensionLength = strcspn(algorithm->extensions, ",");
                 allocatedName = malloc(strlen(filename) + extensionLength + 2);
@@ -614,6 +627,7 @@ static int processOperand(const char* filename) {
 }
 
 ssize_t writeAll(int fd, const void* buffer, size_t size) {
+    if (fd == -1) return size;
     size_t written = 0;
     while (written < size) {
         ssize_t result = write(fd, (char*) buffer + written, size - written);

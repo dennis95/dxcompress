@@ -1,4 +1,4 @@
-.Dd October 03, 2020
+.Dd October 05, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,12 +8,12 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl 123456789cdfghOrvV
+.Op Fl 123456789cdfghOrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Ar files...
 .Nm uncompress
-.Op Fl cfrv
+.Op Fl cfrtv
 .Op Ar files...
 .Nm zcat
 .Op Fl rv
@@ -176,6 +176,8 @@ For any given operand that names a directory, all files in that directory are
 compressed or decompressed.
 If a file in a directory already has the file extension associated with the used
 algorithm, that file will be ignored.
+.It Fl t , -test
+Test the integrity of compressed files without changing any files.
 .It Fl v , -verbose
 For each file print the size reduction or expansion of the file.
 .It Fl V , -version
