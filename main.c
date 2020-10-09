@@ -64,6 +64,7 @@ static const struct algorithm algoNull = {
 enum { MODE_COMPRESS, MODE_DECOMPRESS, MODE_TEST, MODE_LIST };
 static const struct algorithm* algorithm;
 static bool force = false;
+static const char* givenOutputName = NULL;
 static int level = -1;
 static int mode = MODE_COMPRESS;
 static const char* programName;
@@ -93,7 +94,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghlm:OrtvV";
+    const char* opts = "123456789b:cdfghlm:o:OrtvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
@@ -135,6 +136,7 @@ int main(int argc, char* argv[]) {
 "  -h, --help               display this help\n"
 "  -l, --list               list information about compressed files\n"
 "  -m ALGO                  use the ALGO algorithm for compression\n"
+"  -o FILENAME              write output to FILENAME\n"
 "  -O                       use the lzw algorithm for compression\n"
 "  -r, --recursive          recursively (de)compress files in directories\n"
 "  -t, --test               check file integrity\n"
@@ -147,6 +149,9 @@ argv[0]);
             break;
         case 'm':
             algorithmName = optarg;
+            break;
+        case 'o':
+            givenOutputName = optarg;
             break;
         case 'O':
             algorithmName = "lzw";
@@ -164,6 +169,20 @@ argv[0]);
             printf("%s (%s)\n", argv[0], PACKAGE_STRING);
             return 0;
         case '?':
+            return 1;
+        }
+    }
+
+    if (givenOutputName) {
+        if (optind + 1 < argc) {
+            printWarning("the -o option cannot be used with multiple input "
+                    "files");
+            return 1;
+        }
+        if (recursive || writeToStdout || mode == MODE_TEST ||
+                mode == MODE_LIST) {
+            printWarning("the -o option cannot be used with any of the -clrt "
+                    "options");
             return 1;
         }
     }
@@ -252,22 +271,24 @@ static const struct algorithm* handleExtensions(const char* filename,
                 if (length == extLength && strncmp(extension, extensions,
                         length) == 0) {
                     if (inputName) *inputName = filename;
-                    if (extensions[length] == ':') {
-                        const char* newExt = extensions + extLength + 1;
-                        size_t newExtLength = strcspn(newExt, ",");
-                        *allocatedName = malloc(nameWithoutExtLength +
-                                newExtLength + 2);
-                        if (!*allocatedName) outOfMemory();
-                        *stpncpy(stpcpy(stpncpy(*allocatedName, filename,
-                                nameWithoutExtLength), "."), newExt,
-                                newExtLength) = '\0';
-                    } else {
-                        *allocatedName = strndup(filename,
-                                nameWithoutExtLength);
-                        if (!*allocatedName) outOfMemory();
-                    }
+                    if (outputName) {
+                        if (extensions[length] == ':') {
+                            const char* newExt = extensions + extLength + 1;
+                            size_t newExtLength = strcspn(newExt, ",");
+                            *allocatedName = malloc(nameWithoutExtLength +
+                                    newExtLength + 2);
+                            if (!*allocatedName) outOfMemory();
+                            *stpncpy(stpcpy(stpncpy(*allocatedName, filename,
+                                    nameWithoutExtLength), "."), newExt,
+                                    newExtLength) = '\0';
+                        } else {
+                            *allocatedName = strndup(filename,
+                                    nameWithoutExtLength);
+                            if (!*allocatedName) outOfMemory();
+                        }
 
-                    *outputName = *allocatedName;
+                        *outputName = *allocatedName;
+                    }
                     return algorithms[i];
                 }
                 extensions += strcspn(extensions, ",");
@@ -276,7 +297,7 @@ static const struct algorithm* handleExtensions(const char* filename,
         }
     }
 
-    if (inputName) {
+    if (inputName && outputName) {
         *allocatedName = malloc(strlen(filename) + 3);
         if (!*allocatedName) outOfMemory();
         stpcpy(stpcpy(*allocatedName, filename), ".Z");
@@ -471,7 +492,9 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
             close(input);
             return 1;
         }
+    }
 
+    if (outputName) {
         if (!writeToStdout && mode != MODE_TEST && mode != MODE_LIST) {
             if (force) {
                 unlinkat(dirFd, outputName, 0);
@@ -550,7 +573,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
             exit(1);
         }
         status = 1;
-    } else if (output != 1 && output != -1) {
+    } else if (input != 0 && output != 1 && output != -1) {
 #if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
             printWarning("cannot set ownership for '%s': %s", outputPath,
@@ -616,6 +639,9 @@ static int processOperand(const char* filename) {
     bool isDirectory = false;
     if (strcmp(filename, "-") == 0) {
         inputName = NULL;
+        if (givenOutputName) {
+            outputName = givenOutputName;
+        }
     } else {
         struct stat st;
         bool fileExists = true;
@@ -626,7 +652,9 @@ static int processOperand(const char* filename) {
         }
 
         if (!isDirectory && mode == MODE_COMPRESS) {
-            if (!writeToStdout) {
+            if (givenOutputName) {
+                outputName = givenOutputName;
+            } else if (!writeToStdout) {
                 size_t extensionLength = strcspn(algorithm->extensions, ",");
                 allocatedName = malloc(strlen(filename) + extensionLength + 2);
                 if (!allocatedName) outOfMemory();
@@ -638,6 +666,9 @@ static int processOperand(const char* filename) {
             size_t length = strlen(filename);
             if (writeToStdout && fileExists) {
                 // Use the filename as is.
+            } else if (givenOutputName) {
+                outputName = givenOutputName;
+                algorithm = handleExtensions(filename, NULL, NULL, NULL);
             } else if (!fileExists && (length <= 2 ||
                     filename[length - 2] != '.' ||
                     filename[length - 1] != 'Z')) {

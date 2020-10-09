@@ -11,9 +11,11 @@
 .Op Fl 123456789cdfghlOrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
+.Op Fl o Ar filename
 .Op Ar files...
 .Nm uncompress
 .Op Fl cflrtv
+.Op Fl o Ar filename
 .Op Ar files...
 .Nm zcat
 .Op Fl rv
@@ -198,6 +200,13 @@ The modification date and time of the compressed file.
 .It Fl m Ar algo
 For compression use the compression algorithm specified by
 .Ar algo .
+.It Fl o Ar filename
+Use
+.Ar filename
+as the output file name.
+This option cannot be used with multiple input files or with any of the
+.Fl clrt
+options.
 .It Fl O
 Use the Lempel-Ziv-Welch (LZW) algorithm for compression.
 Equivalent to
