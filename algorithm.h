@@ -21,6 +21,7 @@
 #define ALGORITHM_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 #include <sys/types.h>
 
@@ -38,7 +39,9 @@ enum {
 struct fileinfo {
     const char* name;
     struct timespec modificationTime;
-    double ratio;
+    off_t compressedSize;
+    off_t uncompressedSize;
+    uint32_t crc;
 };
 
 struct algorithm {

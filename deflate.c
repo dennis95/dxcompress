@@ -122,7 +122,8 @@ static int gzipCompress(int input, int output, int level,
         stream.avail_out = sizeof(outputBuffer);
     } while (status != Z_STREAM_END);
 
-    info->ratio = 1.0 - (double) stream.total_out / (double) stream.total_in;
+    info->uncompressedSize = stream.total_in;
+    info->compressedSize = stream.total_out;
     deflateEnd(&stream);
     return RESULT_OK;
 #else
@@ -148,6 +149,12 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
     int status = inflateInit2(&stream, 15 + 16);
     if (status == Z_MEM_ERROR) return RESULT_OUT_OF_MEMORY;
     if (status != Z_OK) return RESULT_UNKNOWN_ERROR;
+
+    gz_header header;
+    header.name = Z_NULL;
+    header.extra = Z_NULL;
+    header.comment = Z_NULL;
+    inflateGetHeader(&stream, &header);
 
     unsigned char outputBuffer[BUFFER_SIZE];
     stream.next_out = outputBuffer;
@@ -203,7 +210,11 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
         inflateEnd(&stream);
         return RESULT_WRITE_ERROR;
     }
-    info->ratio = 1.0 - (double) stream.total_in / (double) stream.total_out;
+    info->compressedSize = stream.total_in;
+    info->uncompressedSize = stream.total_out;
+    info->modificationTime.tv_sec = header.time;
+    info->modificationTime.tv_nsec = 0;
+    info->crc = stream.adler;
     inflateEnd(&stream);
 
     return RESULT_OK;

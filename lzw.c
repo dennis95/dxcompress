@@ -176,7 +176,7 @@ static int lzwCompress(int input, int output, int maxbits,
         if (writeAll(output, state.buffer, state.bufferOffset) < 0) {
             return RESULT_WRITE_ERROR;
         }
-        info->ratio = -1.0;
+        info->uncompressedSize = 0;
         return RESULT_OK;
     }
     size_t inputSize = amount;
@@ -244,7 +244,8 @@ static int lzwCompress(int input, int output, int maxbits,
     if (writeAll(output, state.buffer, state.bufferOffset) < 0) {
         return RESULT_WRITE_ERROR;
     }
-    info->ratio = 1.0 - (double) state.outputBytes / (double) state.inputBytes;
+    info->uncompressedSize = state.inputBytes;
+    info->compressedSize = state.outputBytes;
     return RESULT_OK;
 
 writeError:
@@ -457,7 +458,11 @@ static int lzwDecompress(int input, int output, struct fileinfo* info,
         return RESULT_WRITE_ERROR;
     }
 
-    info->ratio = 1.0 - (double) state.inputBytes / (double) state.outputBytes;
+    info->compressedSize = state.inputBytes;
+    info->uncompressedSize = state.outputBytes;
+    info->modificationTime.tv_sec = 0;
+    info->modificationTime.tv_nsec = 0;
+    info->crc = -1;
     return RESULT_OK;
 
 formatError:

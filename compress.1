@@ -1,4 +1,4 @@
-.Dd October 05, 2020
+.Dd October 09, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,12 +8,12 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl 123456789cdfghOrtvV
+.Op Fl 123456789cdfghlOrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Ar files...
 .Nm uncompress
-.Op Fl cfrtv
+.Op Fl cflrtv
 .Op Ar files...
 .Nm zcat
 .Op Fl rv
@@ -163,6 +163,38 @@ Equivalent to
 .Fl m Cm gzip .
 .It Fl h , -help
 Print a short help message and exit.
+.It Fl l , -list
+List information about compressed files.
+The following information is listed:
+.Bl -tag -width "uncompressed name"
+.It compressed
+The size of the compressed file.
+.It uncompressed
+The size of the uncompressed file.
+.It ratio
+The compression ratio by which the size of the file was reduced.
+.It uncompressed name
+The name that will be used for the output file when decompressing.
+.El
+.Pp
+If the
+.Fl v
+option is specified, the following additional information is printed in front of
+the information above:
+.Bl -tag -width "uncompressed name"
+.It method
+The algorithm that was used for compression.
+This value is suitable for use as an argument to the
+.Fl m
+option.
+.It crc
+The 32-bit CRC (cyclic redundancy code) of the uncompressed data, if it is saved
+within the compressed file.
+For algorithms (like LZW) that do not save a CRC, this value is printed as
+ffffffff.
+.It date , time
+The modification date and time of the compressed file.
+.El
 .It Fl m Ar algo
 For compression use the compression algorithm specified by
 .Ar algo .
