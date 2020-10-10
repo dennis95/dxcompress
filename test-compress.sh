@@ -23,6 +23,7 @@ fi
 # Select which features to test.
 : ${test_posix202x=yes}
 : ${test_recursive=yes}
+: ${test_extensions=yes}
 
 compress() {
     command $COMPRESS "$@"
@@ -352,6 +353,44 @@ test -e dir1/dir2/bar || fail $LINENO "File dir1/dir2/bar was unlinked"
 rm -rf dir1
 
 fi # test_recursive
+
+if test $test_extensions = yes; then
+#############################################
+# Tests for various non-standard extensions #
+#############################################
+
+# Test that compress -cdf succeeds for files in unknown format.
+compressibleFile | compress -cdf > /dev/null || fail $LINENO "compress -cdf failed"
+compressibleFile > foo
+compress -cdf foo > /dev/null || fail $LINENO "compress -cdf failed"
+test -e foo || fail $LINENO "Input file was unlinked"
+
+# Test -t
+compress foo || fail $LINENO "Compression failed"
+compress -t foo.Z || fail $LINENO "Verification of compressed file failed"
+test -e foo.Z || fail $LINENO "Input file was unlinked"
+test ! -e foo || fail $LINENO "Output file was unexpectedly created"
+compress -t < foo.Z || fail $LINENO "Verification of piped file failed"
+compressibleFile > foo.Z
+msg=$(compress -t foo.Z 2>&1 >/dev/null) && fail $LINENO "Verification of invalid file succeeded"
+test -n "$msg" || fail $LINENO "Diagnostic message missing"
+msg=$(compress -t < foo.Z 2>&1 >/dev/null) && fail $LINENO "Verification of invalid file succeeded"
+test -n "$msg" || fail $LINENO "Diagnostic message missing"
+rm -f foo foo.Z
+
+# Test -o
+compressibleFile > foo
+compress -o bar.Z foo || fail $LINENO "Compression with -o failed"
+test ! -e foo || fail $LINENO "Input file was not unlinked"
+test ! -e foo.Z || fail $LINENO "Wrong output file was created"
+test -e bar.Z || fail $LINENO "Output file was not created"
+compress -d -o foo bar.Z || fail $LINENO "Decompression with -o failed"
+test ! -e bar.Z || fail $LINENO "Input file was not unlinked"
+test ! -e bar || fail $LINENO "Wrong output file was created"
+test -e foo || fail $LINENO "Output file was not created"
+rm -f foo foo.Z bar bar.Z
+
+fi # test_extensions
 
 rm -rf "$testdir"
 
