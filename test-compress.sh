@@ -390,6 +390,53 @@ test ! -e bar || fail $LINENO "Wrong output file was created"
 test -e foo || fail $LINENO "Output file was not created"
 rm -f foo foo.Z bar bar.Z
 
+# Check compression with -S
+compressibleFile > foo
+compress -S .bar foo || fail $LINENO "Compression with -S failed"
+test ! -e foo || fail $LINENO "Input file was not unlinked"
+test ! -e foo.Z || fail $LINENO "Wrong output file was created"
+test -e foo.bar || fail $LINENO "Output file was not created"
+
+# Check decompression with -S
+compress -d -S .bar foo.bar || fail $LINENO "Decompression with -S failed"
+test ! -e foo.bar || fail $LINENO "Input file was not unlinked"
+test -e foo || fail $LINENO "Output file was not created"
+rm -f foo foo.Z foo.bar
+
+# Check that -S also works with gzip.
+compressibleFile > foo
+compress -gS .bar foo || fail $LINENO "Compression with -S failed"
+test ! -e foo || fail $LINENO "Input file was not unlinked"
+test ! -e foo.gz || fail $LINENO "Wrong output file was created"
+test -e foo.bar || fail $LINENO "Output file was not created"
+
+compress -d -S .bar foo || fail $LINENO "Decompression with -S failed"
+test ! -e foo.bar || fail $LINENO "Input file was not unlinked"
+test -e foo || fail $LINENO "Output file was not created"
+rm -f foo foo.gz foo.bar
+
+# Check that the suffix is ignored if an existing file with known suffix is given
+compressibleFile > foo
+compress foo || fail $LINENO "Compression failed"
+compressibleFile > foo.Z.bar
+compress -d -S .bar foo.Z || fail $LINENO "Decompression failed"
+test -e foo || fail $LINENO "Output file was not created"
+test ! -e foo.Z || fail $LINENO "Input file was not unlinked"
+test -e foo.Z.bar || fail $LINENO "Wrong file was unlinked"
+rm -f foo foo.Z foo.Z.bar
+
+# Check that -S works with -r
+mkdir dir1
+compressibleFile > dir1/foo
+compress -rS .bar dir1 || fail $LINENO "Recursive compression with -S failed"
+test ! -e dir1/foo || fail $LINENO "Input file was not unlinked"
+test ! -e dir1/foo.Z || fail $LINENO "Wrong output file was created"
+test -e dir1/foo.bar || fail $LINENO "Output file was not created"
+compress -drS .bar dir1 || fail $LINENO "Recursive decompression with -S failed"
+test -e dir1/foo || fail $LINENO "Output file was not created"
+test ! -e dir1/foo.bar || fail $LINENO "Input file was not unlinked"
+rm -rf dir1
+
 fi # test_extensions
 
 rm -rf "$testdir"

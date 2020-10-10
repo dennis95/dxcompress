@@ -42,6 +42,7 @@ static const struct algorithm* algorithms[] = {
 
 static const struct algorithm* getAlgorithm(const char* name);
 static bool getConfirmation(const char* filename);
+static bool hasSuffix(const char* string, const char* suffix);
 static const struct algorithm* handleExtensions(const char* filename,
         const char** inputName, const char** outputName, char** allocatedName);
 static void list(const struct fileinfo* info);
@@ -70,6 +71,7 @@ static int mode = MODE_COMPRESS;
 static const char* programName;
 static bool quiet = false;
 static bool recursive = false;
+static const char* suffix = NULL;
 static bool verbose = false;
 static bool writeToStdout = false;
 
@@ -85,6 +87,7 @@ int main(int argc, char* argv[]) {
         { "quiet", no_argument, 0, 'q' },
         { "recursive", no_argument, 0, 'r' },
         { "stdout", no_argument, 0, 'c' },
+        { "suffix", required_argument, 0, 'S' },
         { "test", no_argument, 0, 't' },
         { "to-stdout", no_argument, 0, 'c' },
         { "uncompress", no_argument, 0, 'd' },
@@ -96,7 +99,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghlm:o:OqrtvV";
+    const char* opts = "123456789b:cdfghlm:o:OqrS:tvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
@@ -142,6 +145,7 @@ int main(int argc, char* argv[]) {
 "  -O                       use the lzw algorithm for compression\n"
 "  -q, --quiet              suppress warning messages\n"
 "  -r, --recursive          recursively (de)compress files in directories\n"
+"  -S, --suffix=SUFFIX      use SUFFIX as suffix for compressed files\n"
 "  -t, --test               check file integrity\n"
 "  -v, --verbose            print filenames and compression ratios\n"
 "  -V, --version            display version info\n",
@@ -165,6 +169,10 @@ argv[0]);
             break;
         case 'r':
             recursive = true;
+            break;
+        case 'S':
+            if (optarg[0] == '.') optarg++;
+            suffix = optarg;
             break;
         case 't':
             mode = MODE_TEST;
@@ -305,15 +313,36 @@ static const struct algorithm* handleExtensions(const char* filename,
         }
     }
 
+    if (suffix && hasSuffix(filename, suffix)) {
+        if (inputName) *inputName = filename;
+        if (outputName) {
+            *allocatedName = strndup(filename,
+                    strlen(filename) - strlen(suffix) - 1);
+            if (!*allocatedName) outOfMemory();
+            *outputName = *allocatedName;
+        }
+        return NULL;
+    }
+
     if (inputName && outputName) {
-        *allocatedName = malloc(strlen(filename) + 3);
+        *allocatedName = malloc(strlen(filename) + 2 +
+                (suffix ? strlen(suffix) : 1));
         if (!*allocatedName) outOfMemory();
-        stpcpy(stpcpy(*allocatedName, filename), ".Z");
+        stpcpy(stpcpy(stpcpy(*allocatedName, filename), "."),
+                suffix ? suffix : "Z");
         *inputName = *allocatedName;
         *outputName = filename;
-        return algorithms[0];
+        if (!suffix) return algorithms[0];
     }
     return NULL;
+}
+
+static bool hasSuffix(const char* string, const char* suffix) {
+    size_t length = strlen(string);
+    size_t suffixLength = strlen(suffix);
+    if (length <= suffixLength + 1) return false;
+    if (string[length - suffixLength - 1] != '.') return false;
+    return strcmp(string + (length - suffixLength), suffix) == 0;
 }
 
 static void list(const struct fileinfo* info) {
@@ -438,11 +467,16 @@ static int processDirectory(int parentFd, const char* dirname,
             } else {
                 // Skip files that already have the right extension so we don't
                 // compress the same file multiple times.
-                size_t extensionLength = strcspn(algorithm->extensions, ",");
+                const char* extension = algorithm->extensions;
+                size_t extensionLength = strcspn(extension, ",");
+                if (suffix) {
+                    extension = suffix;
+                    extensionLength = strlen(suffix);
+                }
                 if (inputNameLength > extensionLength + 1 &&
                         name[inputNameLength - extensionLength - 1] == '.' &&
                         strncmp(&name[inputNameLength - extensionLength],
-                        algorithm->extensions, extensionLength) == 0) {
+                        extension, extensionLength) == 0) {
                     free(inputPath);
                     errno = 0;
                     dirent = readdir(dir);
@@ -451,12 +485,12 @@ static int processDirectory(int parentFd, const char* dirname,
 
                 allocatedName = malloc(inputNameLength + extensionLength + 2);
                 if (!allocatedName) outOfMemory();
-                *stpncpy(stpcpy(stpcpy(allocatedName, name), "."),
-                        algorithm->extensions, extensionLength) = '\0';
+                *stpncpy(stpcpy(stpcpy(allocatedName, name), "."), extension,
+                        extensionLength) = '\0';
                 outputName = allocatedName;
             }
 
-            if (algorithm) {
+            if (algorithm || suffix) {
                 char* outputPath = malloc(strlen(pathname) + strlen(outputName)
                         + 2);
                 if (!outputPath) outOfMemory();
@@ -536,11 +570,13 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     unsigned char buffer[6];
     size_t bufferUsed = 0;
     int result = RESULT_OK;
-    if ((input == 0 || writeToStdout) && mode != MODE_COMPRESS) {
-        algorithm = probe(input, buffer, &bufferUsed, sizeof(buffer));
-        if (!algorithm) {
-            result = bufferUsed == (size_t) -1 ? RESULT_READ_ERROR :
-                    RESULT_UNRECOGNIZED_FORMAT;
+    if (mode != MODE_COMPRESS) {
+        if (input == 0 || writeToStdout || (suffix && !algorithm)) {
+            algorithm = probe(input, buffer, &bufferUsed, sizeof(buffer));
+            if (!algorithm) {
+                result = bufferUsed == (size_t) -1 ? RESULT_READ_ERROR :
+                        RESULT_UNRECOGNIZED_FORMAT;
+            }
         }
     }
 
@@ -666,29 +702,34 @@ static int processOperand(const char* filename) {
             if (givenOutputName) {
                 outputName = givenOutputName;
             } else if (!writeToStdout) {
-                size_t extensionLength = strcspn(algorithm->extensions, ",");
+                const char* extension = algorithm->extensions;
+                size_t extensionLength = strcspn(extension, ",");
+                if (suffix) {
+                    extension = suffix;
+                    extensionLength = strlen(suffix);
+                }
                 allocatedName = malloc(strlen(filename) + extensionLength + 2);
                 if (!allocatedName) outOfMemory();
                 *stpncpy(stpcpy(stpcpy(allocatedName, filename), "."),
-                        algorithm->extensions, extensionLength) = '\0';
+                        extension, extensionLength) = '\0';
                 outputName = allocatedName;
             }
         } else if (!isDirectory) {
-            size_t length = strlen(filename);
             if (writeToStdout && fileExists) {
                 // Use the filename as is.
             } else if (givenOutputName) {
                 outputName = givenOutputName;
                 algorithm = handleExtensions(filename, NULL, NULL, NULL);
-            } else if (!fileExists && (length <= 2 ||
-                    filename[length - 2] != '.' ||
-                    filename[length - 1] != 'Z')) {
-                allocatedName = malloc(length + 3);
+            } else if (!fileExists &&
+                    !hasSuffix(filename, suffix ? suffix : "Z")) {
+                allocatedName = malloc(strlen(filename) + 2 +
+                        (suffix ? strlen(suffix) : 1));
                 if (!allocatedName) outOfMemory();
-                stpcpy(stpcpy(allocatedName, filename), ".Z");
+                stpcpy(stpcpy(stpcpy(allocatedName, filename), "."),
+                        suffix ? suffix : "Z");
                 inputName = allocatedName;
                 outputName = filename;
-                algorithm = algorithms[0];
+                algorithm =  suffix ? NULL : algorithms[0];
             } else {
                 algorithm = handleExtensions(filename, &inputName, &outputName,
                         &allocatedName);

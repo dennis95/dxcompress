@@ -12,10 +12,12 @@
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Fl o Ar filename
+.Op Fl S Ar suffix
 .Op Ar files...
 .Nm uncompress
 .Op Fl cflqrtv
 .Op Fl o Ar filename
+.Op Fl S Ar suffix
 .Op Ar files...
 .Nm zcat
 .Op Fl fqrv
@@ -228,6 +230,18 @@ For any given operand that names a directory, all files in that directory are
 compressed or decompressed.
 If a file in a directory already has the file extension associated with the used
 algorithm, that file will be ignored.
+.It Fl S Ar suffix , Fl -suffix Ns = Ns Ar suffix
+When compressing, use
+.Ar suffix
+as the suffix of the output file instead of the suffix associated with the
+algorithm.
+.Pp
+When decompressing, if the file named by an operand does not exist or has no
+suffix associated with an algorithm, the operand is taken as the output file and
+.Ar suffix
+is appended to get the input name.
+The algorithm for decompression is then determined by the file contents instead
+of by the suffix.
 .It Fl t , -test
 Test the integrity of compressed files without changing any files.
 .It Fl v , -verbose
