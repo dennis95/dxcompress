@@ -1,4 +1,4 @@
-.Dd October 09, 2020
+.Dd October 10, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,17 +8,17 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl 123456789cdfghlOrtvV
+.Op Fl 123456789cdfghlOqrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Fl o Ar filename
 .Op Ar files...
 .Nm uncompress
-.Op Fl cflrtv
+.Op Fl cflqrtv
 .Op Fl o Ar filename
 .Op Ar files...
 .Nm zcat
-.Op Fl rv
+.Op Fl fqrv
 .Op Ar files...
 .Sh DESCRIPTION
 The
@@ -197,6 +197,11 @@ ffffffff.
 .It date , time
 The modification date and time of the compressed file.
 .El
+.Pp
+A title line listing the information that is printed is also displayed, unless
+the
+.Fl q
+option is specified.
 .It Fl m Ar algo
 For compression use the compression algorithm specified by
 .Ar algo .
@@ -211,6 +216,12 @@ options.
 Use the Lempel-Ziv-Welch (LZW) algorithm for compression.
 Equivalent to
 .Fl m Cm lzw .
+.It Fl q , -quiet
+Suppress any warnings.
+Errors are still displayed.
+Undo the effects of any previously specified
+.Fl v
+option.
 .It Fl r , -recursive
 Recursively compress or decompress directories.
 For any given operand that names a directory, all files in that directory are
@@ -221,6 +232,9 @@ algorithm, that file will be ignored.
 Test the integrity of compressed files without changing any files.
 .It Fl v , -verbose
 For each file print the size reduction or expansion of the file.
+Undo the effects of any previously specified
+.Fl q
+option.
 .It Fl V , -version
 Print version information and exit.
 .El

@@ -68,6 +68,7 @@ static const char* givenOutputName = NULL;
 static int level = -1;
 static int mode = MODE_COMPRESS;
 static const char* programName;
+static bool quiet = false;
 static bool recursive = false;
 static bool verbose = false;
 static bool writeToStdout = false;
@@ -81,6 +82,7 @@ int main(int argc, char* argv[]) {
         { "force", no_argument, 0, 'f' },
         { "help", no_argument, 0, 'h' },
         { "list", no_argument, 0, 'l' },
+        { "quiet", no_argument, 0, 'q' },
         { "recursive", no_argument, 0, 'r' },
         { "stdout", no_argument, 0, 'c' },
         { "test", no_argument, 0, 't' },
@@ -94,7 +96,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghlm:o:OrtvV";
+    const char* opts = "123456789b:cdfghlm:o:OqrtvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
@@ -138,6 +140,7 @@ int main(int argc, char* argv[]) {
 "  -m ALGO                  use the ALGO algorithm for compression\n"
 "  -o FILENAME              write output to FILENAME\n"
 "  -O                       use the lzw algorithm for compression\n"
+"  -q, --quiet              suppress warning messages\n"
 "  -r, --recursive          recursively (de)compress files in directories\n"
 "  -t, --test               check file integrity\n"
 "  -v, --verbose            print filenames and compression ratios\n"
@@ -156,6 +159,10 @@ argv[0]);
         case 'O':
             algorithmName = "lzw";
             break;
+        case 'q':
+            quiet = true;
+            verbose = false;
+            break;
         case 'r':
             recursive = true;
             break;
@@ -163,6 +170,7 @@ argv[0]);
             mode = MODE_TEST;
             break;
         case 'v':
+            quiet = false;
             verbose = true;
             break;
         case 'V':
@@ -200,7 +208,7 @@ argv[0]);
             printWarning("invalid compression level: '%d'", level);
             return 1;
         }
-    } else if (mode == MODE_LIST) {
+    } else if (mode == MODE_LIST && !quiet) {
         if (verbose) {
             fputs("method  crc      date   time  ", stdout);
         }
@@ -575,7 +583,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         status = 1;
     } else if (input != 0 && output != 1 && output != -1) {
 #if HAVE_FCHOWN
-        if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0) {
+        if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0 && !quiet) {
             printWarning("cannot set ownership for '%s': %s", outputPath,
                     strerror(errno));
         }
@@ -606,7 +614,10 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     } else if (status == 0) {
         if (output != 1 && output != -1 && unlinkat(dirFd, inputName, 0) < 0 &&
                 errno == EPERM) {
-            printWarning("cannot unlink '%s': %s", inputPath, strerror(errno));
+            if (!quiet || !force) {
+                printWarning("cannot unlink '%s': %s", inputPath,
+                        strerror(errno));
+            }
             if (!force) {
                 unlinkat(dirFd, outputName, 0);
                 status = 1;
