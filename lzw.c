@@ -72,7 +72,6 @@ always 0. This is certainly a bug in the original compress implementation, but
 it needs to be handled specially to ensure compatibility.
 */
 
-static bool lzwCheckLevel(int level);
 static int lzwCompress(int input, int output, int maxbits,
         struct fileinfo* info);
 static int lzwDecompress(int input, int output, struct fileinfo* info,
@@ -82,8 +81,9 @@ static bool lzwProbe(const unsigned char* buffer, size_t bufferSize);
 const struct algorithm algoLzw = {
     .names = "lzw",
     .extensions = "Z,taz:tar",
+    .minLevel = 9,
     .defaultLevel = 16,
-    .checkLevel = lzwCheckLevel,
+    .maxLevel = 16,
     .compress = lzwCompress,
     .decompress = lzwDecompress,
     .probe = lzwProbe
@@ -96,10 +96,6 @@ const struct algorithm algoLzw = {
 #define CHECK_INTERVAL 5000
 #define BUFFER_SIZE (4096 * 8)
 #define DICT_OFFSET 257
-
-static bool lzwCheckLevel(int level) {
-    return 9 <= level && level <= 16;
-}
 
 static bool lzwProbe(const unsigned char* buffer, size_t bufferSize) {
     return bufferSize >= 3 && buffer[0] == MAGIC1 && buffer[1] == MAGIC2;

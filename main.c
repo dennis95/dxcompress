@@ -89,8 +89,10 @@ int main(int argc, char* argv[]) {
     programName = argv[0];
 
     struct option longopts[] = {
-        { "argv0", required_argument, 0, 0 },
+        { "argv0", required_argument, 0, 1 },
+        { "best", no_argument, &level, -3 },
         { "decompress", no_argument, 0, 'd' },
+        { "fast", no_argument, &level, -2 },
         { "force", no_argument, 0, 'f' },
         { "help", no_argument, 0, 'h' },
         { "keep", no_argument, 0, 'k' },
@@ -115,7 +117,7 @@ int main(int argc, char* argv[]) {
     const char* opts = "123456789b:cdfghklm:nNo:OqrS:tvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
-        case 0: // undocumented --argv0 option for internal use only
+        case 1: // undocumented --argv0 option for internal use only
             programName = argv[0] = optarg;
             break;
         case '1': case '2': case '3': case '4': case '5': case '6': case '7':
@@ -239,7 +241,11 @@ argv[0]);
         }
         if (level == -1) {
             level = algorithm->defaultLevel;
-        } else if (!algorithm->checkLevel(level)) {
+        } else if (level == -2) {
+            level = algorithm->minLevel;
+        } else if (level == -3) {
+            level = algorithm->maxLevel;
+        } else if (level < algorithm->minLevel || level > algorithm->maxLevel) {
             printWarning("invalid compression level: '%d'", level);
             return 1;
         }

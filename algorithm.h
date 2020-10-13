@@ -52,8 +52,9 @@ struct algorithm {
     // File extensions separated by commas. Entries using the format A:B will
     // cause extension A to be replaced by extension B when decompressing.
     const char* extensions;
+    int minLevel;
     int defaultLevel;
-    bool (*checkLevel)(int level);
+    int maxLevel;
     int (*compress)(int input, int output, int level, struct fileinfo* info);
     int (*decompress)(int input, int output, struct fileinfo* info,
             const unsigned char* buffer, size_t bufferSize);

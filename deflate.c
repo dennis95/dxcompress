@@ -25,7 +25,6 @@
 #  include <zlib.h>
 #endif
 
-static bool gzipCheckLevel(int level);
 static int gzipCompress(int input, int output, int level,
         struct fileinfo* info);
 static int gzipDecompress(int input, int output, struct fileinfo* info,
@@ -35,8 +34,9 @@ static bool gzipProbe(const unsigned char* buffer, size_t bufferSize);
 const struct algorithm algoDeflate = {
     .names = "deflate,gzip",
     .extensions = "gz,tgz:tar",
+    .minLevel = 1,
     .defaultLevel = 6,
-    .checkLevel = gzipCheckLevel,
+    .maxLevel = 9,
     .compress = gzipCompress,
     .decompress = gzipDecompress,
     .probe = gzipProbe
@@ -45,10 +45,6 @@ const struct algorithm algoDeflate = {
 #define MAGIC1 0x1F
 #define MAGIC2 0x8B
 #define BUFFER_SIZE (4096 * 8)
-
-static bool gzipCheckLevel(int level) {
-    return 1 <= level && level <= 9;
-}
 
 static bool gzipProbe(const unsigned char* buffer, size_t bufferSize) {
     return bufferSize >= 6 && buffer[0] == MAGIC1 && buffer[1] == MAGIC2;
