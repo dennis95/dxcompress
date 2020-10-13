@@ -8,14 +8,14 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl 123456789cdfghlnNOqrtvV
+.Op Fl 123456789cdfghklnNOqrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Fl o Ar filename
 .Op Fl S Ar suffix
 .Op Ar files...
 .Nm uncompress
-.Op Fl cflnNqrtv
+.Op Fl cfklnNqrtv
 .Op Fl o Ar filename
 .Op Fl S Ar suffix
 .Op Ar files...
@@ -167,6 +167,8 @@ Equivalent to
 .Fl m Cm gzip .
 .It Fl h , -help
 Print a short help message and exit.
+.It Fl k , -keep
+Do not unlink input files.
 .It Fl l , -list
 List information about compressed files.
 The following information is listed:

@@ -73,6 +73,7 @@ enum { MODE_COMPRESS, MODE_DECOMPRESS, MODE_TEST, MODE_LIST };
 static const struct algorithm* algorithm;
 static bool force = false;
 static const char* givenOutputName = NULL;
+static bool keep = false;
 static int level = -1;
 static int mode = MODE_COMPRESS;
 static bool restoreName = false;
@@ -92,6 +93,7 @@ int main(int argc, char* argv[]) {
         { "decompress", no_argument, 0, 'd' },
         { "force", no_argument, 0, 'f' },
         { "help", no_argument, 0, 'h' },
+        { "keep", no_argument, 0, 'k' },
         { "list", no_argument, 0, 'l' },
         { "name", no_argument, 0, 'N' },
         { "no-name", no_argument, 0, 'n' },
@@ -110,7 +112,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghlm:nNo:OqrS:tvV";
+    const char* opts = "123456789b:cdfghklm:nNo:OqrS:tvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
@@ -150,6 +152,7 @@ int main(int argc, char* argv[]) {
 "  -f, --force              force compression\n"
 "  -g                       use the gzip algorithm for compression\n"
 "  -h, --help               display this help\n"
+"  -k, --keep               do not unlink input files\n"
 "  -l, --list               list information about compressed files\n"
 "  -m ALGO                  use the ALGO algorithm for compression\n"
 "  -n, --no-name            do not save file name and time stamp\n"
@@ -164,6 +167,9 @@ int main(int argc, char* argv[]) {
 "  -V, --version            display version info\n",
 argv[0]);
             return 0;
+        case 'k':
+            keep = true;
+            break;
         case 'l':
             mode = MODE_LIST;
             break;
@@ -703,7 +709,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         }
         status = 2;
     } else if (status == 0) {
-        if (input != 1 && output != 1 && output != -1 &&
+        if (input != 1 && output != 1 && output != -1 && !keep &&
                 unlinkat(dirFd, inputName, 0) < 0 && errno == EPERM) {
             if (!quiet || !force) {
                 printWarning("cannot unlink '%s': %s", inputPath,

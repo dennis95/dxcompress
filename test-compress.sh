@@ -457,6 +457,17 @@ test -e bar || fail $LINENO "Output file was created"
 test ! -e bar.gz || fail $LINENO "Input file was not unlinked"
 rm -f foo bar bar.gz
 
+# Check the -k option
+compressibleFile > foo
+compress -k foo || fail $LINENO "Compression failed"
+test -e foo || fail $LINENO "Input file was unlinked with -k"
+test -e foo.Z || fail $LINENO "Output file was not created"
+rm -f foo
+compress -dk foo.Z || fail $LINENO "Decompression failed"
+test -e foo || fail $LINENO "Output file was not created"
+test -e foo.Z || fail $LINENO "Input file was unlinked with -k"
+rm -f foo foo.Z
+
 fi # test_extensions
 
 rm -rf "$testdir"
