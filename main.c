@@ -40,8 +40,15 @@ static const struct algorithm* algorithms[] = {
     NULL
 };
 
+struct outputinfo {
+    int dirFd;
+    int outputFd;
+    const char* dirPath;
+    const char* outputName;
+};
+
 static const struct algorithm* getAlgorithm(const char* name);
-static bool getConfirmation(const char* filename);
+static bool getConfirmation(const char* dirPath, const char* filename);
 static bool hasSuffix(const char* string, const char* suffix);
 static const struct algorithm* handleExtensions(const char* filename,
         const char** inputName, const char** outputName, char** allocatedName);
@@ -55,7 +62,7 @@ static const struct algorithm* probe(int input, unsigned char* buffer,
 static int processDirectory(int parentFd, const char* dirname,
         const char* pathname);
 static int processFile(int dirFd, const char* inputName, const char* outputName,
-        const char* inputPath, const char* outputPath);
+        const char* inputPath, const char* dirPath);
 static int processOperand(const char* filename);
 
 static const struct algorithm algoNull = {
@@ -68,6 +75,8 @@ static bool force = false;
 static const char* givenOutputName = NULL;
 static int level = -1;
 static int mode = MODE_COMPRESS;
+static bool restoreName = false;
+static bool saveName = true;
 static const char* programName;
 static bool quiet = false;
 static bool recursive = false;
@@ -84,6 +93,8 @@ int main(int argc, char* argv[]) {
         { "force", no_argument, 0, 'f' },
         { "help", no_argument, 0, 'h' },
         { "list", no_argument, 0, 'l' },
+        { "name", no_argument, 0, 'N' },
+        { "no-name", no_argument, 0, 'n' },
         { "quiet", no_argument, 0, 'q' },
         { "recursive", no_argument, 0, 'r' },
         { "stdout", no_argument, 0, 'c' },
@@ -99,7 +110,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghlm:o:OqrS:tvV";
+    const char* opts = "123456789b:cdfghlm:nNo:OqrS:tvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 0: // undocumented --argv0 option for internal use only
@@ -134,13 +145,15 @@ int main(int argc, char* argv[]) {
         case 'h':
             printf("Usage: %s [OPTIONS] [FILE...]\n"
 "  -b LEVEL                 set the compression level\n"
-"  -d, --decompress         decompress files\n"
 "  -c, --stdout             write output to stdout\n"
+"  -d, --decompress         decompress files\n"
 "  -f, --force              force compression\n"
 "  -g                       use the gzip algorithm for compression\n"
 "  -h, --help               display this help\n"
 "  -l, --list               list information about compressed files\n"
 "  -m ALGO                  use the ALGO algorithm for compression\n"
+"  -n, --no-name            do not save file name and time stamp\n"
+"  -N, --name               use file name and time from compressed files\n"
 "  -o FILENAME              write output to FILENAME\n"
 "  -O                       use the lzw algorithm for compression\n"
 "  -q, --quiet              suppress warning messages\n"
@@ -156,6 +169,14 @@ argv[0]);
             break;
         case 'm':
             algorithmName = optarg;
+            break;
+        case 'n':
+            restoreName = false;
+            saveName = false;
+            break;
+        case 'N':
+            restoreName = true;
+            saveName = true;
             break;
         case 'o':
             givenOutputName = optarg;
@@ -251,9 +272,10 @@ static const struct algorithm* getAlgorithm(const char* name) {
     return NULL;
 }
 
-static bool getConfirmation(const char* filename) {
+static bool getConfirmation(const char* dirPath, const char* filename) {
     if (!isatty(0)) return false;
-    fprintf(stderr, "File '%s' already exists, overwrite? ", filename);
+    fprintf(stderr, "File '%s%s%s' already exists, overwrite? ",
+            dirPath ? dirPath : "", dirPath ? "/" : "", filename);
     char response = fgetc(stdin);
     char c = response;
     while (c != '\n' && c != EOF) {
@@ -384,6 +406,30 @@ static int nullDecompress(int input, int output, struct fileinfo* info,
     }
 }
 
+int openOutputFile(const char* outputName, struct outputinfo* oinfo) {
+    if (!outputName) outputName = oinfo->outputName;
+    if (force) {
+        unlinkat(oinfo->dirFd, outputName, 0);
+    }
+    oinfo->outputFd = openat(oinfo->dirFd, outputName,
+            O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
+    if (oinfo->outputFd < 0 && errno == EEXIST && !force) {
+        if (getConfirmation(oinfo->dirPath, outputName)) {
+            unlinkat(oinfo->dirFd, outputName, 0);
+            oinfo->outputFd = openat(oinfo->dirFd, outputName,
+                    O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
+        } else {
+            errno = EEXIST;
+        }
+    }
+    if (oinfo->outputFd < 0) {
+        printWarning("cannot create file '%s%s%s': %s",
+                oinfo->dirPath ? oinfo->dirPath : "", oinfo->dirPath ? "/" : "",
+                outputName, strerror(errno));
+    }
+    return oinfo->outputFd;
+}
+
 static void outOfMemory(void) {
     printWarning("out of memory");
     exit(1);
@@ -491,14 +537,9 @@ static int processDirectory(int parentFd, const char* dirname,
             }
 
             if (algorithm || suffix) {
-                char* outputPath = malloc(strlen(pathname) + strlen(outputName)
-                        + 2);
-                if (!outputPath) outOfMemory();
-                stpcpy(stpcpy(stpcpy(outputPath, pathname), "/"), outputName);
                 int result = processFile(fd, name, outputName, inputPath,
-                        outputPath);
+                        pathname);
                 if (status == 0 || result == 1) status = result;
-                free(outputPath);
             }
             free(allocatedName);
         }
@@ -518,10 +559,17 @@ static int processDirectory(int parentFd, const char* dirname,
 }
 
 static int processFile(int dirFd, const char* inputName, const char* outputName,
-        const char* inputPath, const char* outputPath) {
+        const char* inputPath, const char* dirPath) {
     int input = 0;
     int output = 1;
     struct stat inputStat;
+
+    struct outputinfo oinfo;
+    oinfo.dirFd = dirFd;
+    oinfo.outputFd = -1;
+    oinfo.dirPath = dirPath;
+    oinfo.outputName = outputName;
+
     if (inputName) {
         input = openat(dirFd, inputName, O_RDONLY | O_NOFOLLOW);
         if (input < 0) {
@@ -537,24 +585,11 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     }
 
     if (outputName) {
-        if (!writeToStdout && mode != MODE_TEST && mode != MODE_LIST) {
-            if (force) {
-                unlinkat(dirFd, outputName, 0);
-            }
-            output = openat(dirFd, outputName,
-                    O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
-            if (output < 0 && errno == EEXIST && !force) {
-                if (getConfirmation(outputPath)) {
-                    unlinkat(dirFd, outputName, 0);
-                    output = openat(dirFd, outputName,
-                            O_WRONLY | O_CREAT | O_NOFOLLOW | O_EXCL, 0666);
-                } else {
-                    errno = EEXIST;
-                }
-            }
+        if (!writeToStdout && mode == MODE_DECOMPRESS && restoreName) {
+            output = -2;
+        } else if (!writeToStdout && mode != MODE_TEST && mode != MODE_LIST) {
+            output = openOutputFile(outputName, &oinfo);
             if (output < 0) {
-                printWarning("cannot create file '%s': %s", outputPath,
-                        strerror(errno));
                 close(input);
                 return 1;
             }
@@ -564,7 +599,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     if (mode == MODE_TEST || mode == MODE_LIST) output = -1;
 
     if (verbose && mode != MODE_LIST) {
-        fprintf(stderr, "%s: ", inputPath);
+        fprintf(stderr, "%s: ", inputPath ? inputPath : "stdin");
     }
 
     unsigned char buffer[6];
@@ -580,13 +615,20 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         }
     }
 
-    struct fileinfo info;
-    if (input == 0) {
-        info.name = NULL;
-        clock_gettime(CLOCK_REALTIME, &info.modificationTime);
-    } else {
-        info.name = inputName;
-        info.modificationTime = inputStat.st_mtim;
+    struct fileinfo info = {0};
+    info.oinfo = &oinfo;
+    if (mode == MODE_COMPRESS) {
+        if (!saveName) {
+            info.name = NULL;
+            info.modificationTime.tv_sec = 0;
+            info.modificationTime.tv_nsec = 0;
+        } else if (input == 0) {
+            info.name = NULL;
+            clock_gettime(CLOCK_REALTIME, &info.modificationTime);
+        } else {
+            info.name = inputName;
+            info.modificationTime = inputStat.st_mtim;
+        }
     }
     if (algorithm) {
         if (mode != MODE_COMPRESS) {
@@ -597,13 +639,21 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         }
     }
 
+    if (mode == MODE_DECOMPRESS && restoreName) {
+        output = oinfo.outputFd;
+        if (info.name) outputName = info.name;
+    }
+
     int status = 0;
-    if (result != RESULT_OK) {
+    if (result == RESULT_OPEN_FAILURE) {
+        // An error message was already printed.
+        status = 1;
+    } else if (result != RESULT_OK) {
         printWarning("failed to %s '%s': %s",
                 mode == MODE_COMPRESS ? "compress" :
                 mode == MODE_DECOMPRESS ? "decompress" :
                 mode == MODE_TEST ? "verify" : "list",
-                inputPath,
+                inputPath ? inputPath : "stdin",
                 result == RESULT_FORMAT_ERROR ? "file format error" :
                 result == RESULT_READ_ERROR ? "read error" :
                 result == RESULT_WRITE_ERROR ? "write error" :
@@ -620,12 +670,17 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
     } else if (input != 0 && output != 1 && output != -1) {
 #if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0 && !quiet) {
-            printWarning("cannot set ownership for '%s': %s", outputPath,
+            printWarning("cannot set ownership for '%s%s%s': %s",
+                    dirPath ? dirPath : "", dirPath ? "/" : "", outputName,
                     strerror(errno));
         }
 #endif
         fchmod(output, inputStat.st_mode);
         struct timespec ts[2] = { inputStat.st_atim, inputStat.st_mtim };
+        if (restoreName && (info.modificationTime.tv_sec != 0 ||
+                info.modificationTime.tv_nsec != 0)) {
+            ts[0] = ts[1] = info.modificationTime;
+        }
         futimens(output, ts);
     }
 
@@ -648,8 +703,8 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         }
         status = 2;
     } else if (status == 0) {
-        if (output != 1 && output != -1 && unlinkat(dirFd, inputName, 0) < 0 &&
-                errno == EPERM) {
+        if (input != 1 && output != 1 && output != -1 &&
+                unlinkat(dirFd, inputName, 0) < 0 && errno == EPERM) {
             if (!quiet || !force) {
                 printWarning("cannot unlink '%s': %s", inputPath,
                         strerror(errno));
@@ -659,9 +714,24 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 status = 1;
             }
         } else if (mode == MODE_LIST) {
-            info.modificationTime = inputStat.st_mtim;
-            info.name = outputName ? outputName : outputPath;
+            bool nameReplaced = false;
+            if (!restoreName) {
+                info.modificationTime = inputStat.st_mtim;
+                free((void*) info.name);
+                info.name = outputName;
+                nameReplaced = true;
+            }
+            if (info.modificationTime.tv_sec == 0 &&
+                    info.modificationTime.tv_nsec == 0) {
+                info.modificationTime = inputStat.st_mtim;
+            }
+            if (!info.name) {
+                info.name = outputName ? outputName : "stdout";
+                nameReplaced = true;
+            }
+
             list(&info);
+            if (nameReplaced) info.name = NULL;
         } else if (verbose) {
             if (mode == MODE_DECOMPRESS) {
                 fprintf(stderr, "Expansion %.2f%%", ratio * 100.0);
@@ -671,10 +741,14 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 fputs("OK", stderr);
             }
             if (output != 1 && output != -1) {
-                fprintf(stderr, " - replaced with '%s'", outputPath);
+                fprintf(stderr, " - replaced with '%s%s%s'",
+                        dirPath ? dirPath : "", dirPath ? "/" : "", outputName);
             }
             fputc('\n', stderr);
         }
+    }
+    if (mode != MODE_COMPRESS) {
+        free((void*) info.name);
     }
     return status;
 }
@@ -741,9 +815,7 @@ static int processOperand(const char* filename) {
     if (isDirectory) {
         status = processDirectory(AT_FDCWD, inputName, inputName);
     } else {
-        status = processFile(AT_FDCWD, inputName, outputName,
-                inputName ? inputName : "stdin",
-                outputName ? outputName : "stdout");
+        status = processFile(AT_FDCWD, inputName, outputName, inputName, NULL);
     }
 
     free(allocatedName);

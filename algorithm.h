@@ -33,6 +33,7 @@ enum {
     RESULT_UNRECOGNIZED_FORMAT,
     RESULT_UNIMPLEMENTED_FORMAT,
     RESULT_OUT_OF_MEMORY,
+    RESULT_OPEN_FAILURE,
     RESULT_UNKNOWN_ERROR
 };
 
@@ -42,6 +43,7 @@ struct fileinfo {
     off_t compressedSize;
     off_t uncompressedSize;
     uint32_t crc;
+    struct outputinfo* oinfo;
 };
 
 struct algorithm {
@@ -61,6 +63,7 @@ struct algorithm {
 extern const struct algorithm algoDeflate;
 extern const struct algorithm algoLzw;
 
+int openOutputFile(const char* outputName, struct outputinfo* oinfo);
 ssize_t writeAll(int fd, const void* buffer, size_t size);
 
 #endif

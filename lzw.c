@@ -176,7 +176,6 @@ static int lzwCompress(int input, int output, int maxbits,
         if (writeAll(output, state.buffer, state.bufferOffset) < 0) {
             return RESULT_WRITE_ERROR;
         }
-        info->uncompressedSize = 0;
         return RESULT_OK;
     }
     size_t inputSize = amount;
@@ -357,6 +356,11 @@ static int lzwDecompress(int input, int output, struct fileinfo* info,
     size_t dictEntries = 1 << maxbits;
     size_t dictOffset = blockCompress ? DICT_OFFSET : DICT_OFFSET - 1;
 
+    if (output == -2) {
+        output = openOutputFile(NULL, info->oinfo);
+        if (output < 0) return RESULT_OPEN_FAILURE;
+    }
+
     size_t nextFree = dictOffset;
     unsigned char outputBuffer[BUFFER_SIZE];
     size_t outputOffset = 0;
@@ -460,8 +464,6 @@ static int lzwDecompress(int input, int output, struct fileinfo* info,
 
     info->compressedSize = state.inputBytes;
     info->uncompressedSize = state.outputBytes;
-    info->modificationTime.tv_sec = 0;
-    info->modificationTime.tv_nsec = 0;
     info->crc = -1;
     return RESULT_OK;
 

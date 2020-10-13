@@ -1,4 +1,4 @@
-.Dd October 10, 2020
+.Dd October 13, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,14 +8,14 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl 123456789cdfghlOqrtvV
+.Op Fl 123456789cdfghlnNOqrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Fl o Ar filename
 .Op Fl S Ar suffix
 .Op Ar files...
 .Nm uncompress
-.Op Fl cflqrtv
+.Op Fl cflnNqrtv
 .Op Fl o Ar filename
 .Op Fl S Ar suffix
 .Op Ar files...
@@ -179,6 +179,10 @@ The size of the uncompressed file.
 The compression ratio by which the size of the file was reduced.
 .It uncompressed name
 The name that will be used for the output file when decompressing.
+It the
+.Fl N
+option is specified, this will be the name saved inside the compressed file if
+any, otherwise this is the name of the compressed file with its suffix removed.
 .El
 .Pp
 If the
@@ -197,7 +201,12 @@ within the compressed file.
 For algorithms (like LZW) that do not save a CRC, this value is printed as
 ffffffff.
 .It date , time
-The modification date and time of the compressed file.
+The modification date and time of the compressed data.
+If the
+.Fl N
+option is specified, this will be the modification time saved inside the
+compressed file if any, otherwise this is the modification time of the
+compressed file itself.
 .El
 .Pp
 A title line listing the information that is printed is also displayed, unless
@@ -207,6 +216,20 @@ option is specified.
 .It Fl m Ar algo
 For compression use the compression algorithm specified by
 .Ar algo .
+.It Fl n , -no-name
+When compressing, do not save the original file name and modification time in
+the compressed file.
+Undo the effects of any previously specified
+.Fl N
+option.
+.It Fl N , -name
+When decompressing, use the file name saved inside the compressed file if any as
+the output file name and restore the saved modification time.
+Note that not all algorithms support saving the original file name and
+modification time.
+Undo the effects of any previously specified
+.Fl n
+option.
 .It Fl o Ar filename
 Use
 .Ar filename

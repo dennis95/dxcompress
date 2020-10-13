@@ -437,6 +437,26 @@ test -e dir1/foo || fail $LINENO "Output file was not created"
 test ! -e dir1/foo.bar || fail $LINENO "Input file was not unlinked"
 rm -rf dir1
 
+# Check the -N option
+compressibleFile > foo
+compress -g foo || fail $LINENO "Compression failed"
+mv foo.gz bar.gz
+compress -dN bar.gz || fail $LINENO "Decompression with -N failed"
+test -e foo || fail $LINENO "Output file was not created"
+test ! -e bar || fail $LINENO "Wrong output file was created"
+test ! -e bar.gz || fail $LINENO "Input file was not unlinked"
+rm -f foo bar bar.gz
+
+# Check the -n option
+compressibleFile > foo
+compress -gn foo || fail $LINENO "Compression with -n failed"
+mv foo.gz bar.gz
+compress -dN bar.gz || fail $LINENO "Decompression failed"
+test ! -e foo || fail $LINENO "Wrong output file was not created"
+test -e bar || fail $LINENO "Output file was created"
+test ! -e bar.gz || fail $LINENO "Input file was not unlinked"
+rm -f foo bar bar.gz
+
 fi # test_extensions
 
 rm -rf "$testdir"

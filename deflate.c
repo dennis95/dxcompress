@@ -151,7 +151,12 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
     if (status != Z_OK) return RESULT_UNKNOWN_ERROR;
 
     gz_header header;
-    header.name = Z_NULL;
+#ifndef NAME_MAX
+#  define NAME_MAX 1024
+#endif
+    Bytef name[NAME_MAX];
+    header.name = name;
+    header.name_max = sizeof(name);
     header.extra = Z_NULL;
     header.comment = Z_NULL;
     inflateGetHeader(&stream, &header);
@@ -163,7 +168,15 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
     bool endOfStream = false;
 
     while (true) {
-        if (stream.avail_out == 0) {
+        if (output == -2 && header.done == 1) {
+            output = openOutputFile((const char*) header.name, info->oinfo);
+            if (output < 0) {
+                inflateEnd(&stream);
+                return RESULT_OPEN_FAILURE;
+            }
+        }
+
+        if (stream.avail_out == 0 && output != -2) {
             if (writeAll(output, outputBuffer, sizeof(outputBuffer)) < 0) {
                 inflateEnd(&stream);
                 return RESULT_WRITE_ERROR;
@@ -215,6 +228,9 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
     info->modificationTime.tv_sec = header.time;
     info->modificationTime.tv_nsec = 0;
     info->crc = stream.adler;
+    if (header.name) {
+        info->name = strndup((const char*) header.name, header.name_max);
+    }
     inflateEnd(&stream);
 
     return RESULT_OK;
