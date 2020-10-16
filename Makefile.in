@@ -31,7 +31,7 @@ man1dir = $(mandir)/man1
 
 cross_compiling = @cross_compiling@
 
-OBJ = deflate.o lzw.o main.o
+OBJ = deflate.o lzw.o main.o xz.o
 
 all: compress uncompress zcat
 

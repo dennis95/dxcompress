@@ -63,6 +63,7 @@ struct algorithm {
 
 extern const struct algorithm algoDeflate;
 extern const struct algorithm algoLzw;
+extern const struct algorithm algoXz;
 
 int openOutputFile(const char* outputName, struct outputinfo* oinfo);
 ssize_t writeAll(int fd, const void* buffer, size_t size);

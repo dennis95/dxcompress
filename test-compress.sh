@@ -468,6 +468,24 @@ test -e foo || fail $LINENO "Output file was not created"
 test -e foo.Z || fail $LINENO "Input file was unlinked with -k"
 rm -f foo foo.Z
 
+# Check xz compression
+compressibleFile > compare
+for level in 0 1 2 3 4 5 6 7 8 9
+do
+    compressibleFile > foo
+    compress -m xz -b $level foo || fail $LINENO "Compression with -b $level failed"
+    test ! -e foo || fail $LINENO "Input file was not unlinked"
+    test -e foo.xz || fail $LINENO "Output file was not created"
+
+    compress -d foo.xz || fail $LINENO "Decompression for -b $level failed"
+    test -e foo || fail $LINENO "Output file was not created"
+    test ! -e foo.xz || fail $LINENO "Input file was not unlinked"
+
+    cmp -s foo compare || fail $LINENO "Decompressed file contents for -b $level are incorrect"
+    rm -f foo foo.xz
+done
+rm -f compare
+
 fi # test_extensions
 
 rm -rf "$testdir"

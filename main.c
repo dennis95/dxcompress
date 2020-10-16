@@ -37,6 +37,7 @@ static const struct algorithm* algorithms[] = {
     // LZW must be the first entry in this list.
     &algoLzw,
     &algoDeflate,
+    &algoXz,
     NULL
 };
 
@@ -114,14 +115,14 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "123456789b:cdfghklm:nNo:OqrS:tvV";
+    const char* opts = "0123456789b:cdfghklm:nNo:OqrS:tvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 1: // undocumented --argv0 option for internal use only
             programName = argv[0] = optarg;
             break;
-        case '1': case '2': case '3': case '4': case '5': case '6': case '7':
-        case '8': case '9':
+        case '0': case '1': case '2': case '3': case '4': case '5': case '6':
+        case '7': case '8': case '9':
             level = c - '0';
             if (!algorithmName) algorithmName = "gzip";
             break;

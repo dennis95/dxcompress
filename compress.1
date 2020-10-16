@@ -1,4 +1,4 @@
-.Dd October 13, 2020
+.Dd October 16, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -8,7 +8,7 @@
 .Nd compress and decompress data
 .Sh SYNOPSIS
 .Nm
-.Op Fl 123456789cdfghklnNOqrtvV
+.Op Fl 0123456789cdfghklnNOqrtvV
 .Op Fl b Ar level
 .Op Fl m Ar algo
 .Op Fl o Ar filename
@@ -46,17 +46,7 @@ Otherwise, the input file is unlinked.
 The following compression algorithms are supported and can be selected using the
 .Fl m
 option:
-.Bl -tag -width Ds
-.It Cm lzw
-The Lempel-Ziv-Welch (LZW) algorithm.
-The suffix associated with this algorithm is
-.Pa .Z .
-Additionally when decompressing, the suffix
-.Pa .taz
-is supported which will be replaced by
-.Pa .tar
-to produce the output file name.
-This algorithm is used by default.
+.Bl -tag -width deflate
 .It Cm deflate
 The DEFLATE (gzip) algorithm.
 The suffix associated with this algorithm is
@@ -69,6 +59,25 @@ to produce the output file name.
 .It Cm gzip
 Synonym for
 .Cm deflate .
+.It Cm lzw
+The Lempel-Ziv-Welch (LZW) algorithm.
+The suffix associated with this algorithm is
+.Pa .Z .
+Additionally when decompressing, the suffix
+.Pa .taz
+is supported which will be replaced by
+.Pa .tar
+to produce the output file name.
+This algorithm is used by default.
+.It Cm xz
+The XZ format.
+The suffix associated with this algorithm is
+.Pa .xz .
+Additionally when decompressing, the suffix
+.Pa .txz
+is supported which will be replaced by
+.Pa .tar
+to produce the output file name.
 .El
 .Pp
 When decompressing
@@ -113,7 +122,7 @@ but any options that do not make sense for decompression will be ignored.
 The following options are supported by
 .Nm :
 .Bl -tag -width Ds
-.It Fl 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9
+.It Fl 0 , 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9
 Set the compression level to the number given.
 These options are equivalent to use of the
 .Fl b
@@ -137,6 +146,9 @@ The values must be between 9 and 16 inclusive.
 For the DEFLATE algorithm,
 .Ar level
 must be between 1 and 9 inclusive.
+For the XZ format,
+.Ar level
+must be between 0 and 9 inclusive.
 .It Fl c , -stdout , -to-stdout
 Write the result of compression or decompression to the standard output and do
 not unlink the input files.
@@ -292,7 +304,8 @@ have resulted in an increase of size.
 .Ex -std uncompress zcat
 .Sh SEE ALSO
 .Xr gzip 1 ,
-.Xr tar 1
+.Xr tar 1 ,
+.Xr xz 1
 .Sh STANDARDS
 The
 .St -p1003.1-2008
