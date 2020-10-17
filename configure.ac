@@ -1,5 +1,6 @@
 m4_include([m4/check-cflags.m4])
 m4_include([m4/pkg-config.m4])
+m4_include([m4/wrappers.m4])
 
 AC_PREREQ([2.69])
 AC_INIT([dxcompress], [0.1])
@@ -9,8 +10,6 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_USE_SYSTEM_EXTENSIONS
 AC_SYS_LARGEFILE
-
-AC_PROG_SED
 
 AC_ARG_WITH([liblzma], [AS_HELP_STRING([--without-liblzma],
  [disable xz support through liblzma])], [], [with_liblzma=yes])
@@ -23,6 +22,8 @@ AC_ARG_WITH([zlib], [AS_HELP_STRING([--without-zlib],
 AS_IF([test "$with_zlib" != no],
 [DX_PKG_CONFIG_LIB([zlib],
  [AC_DEFINE([WITH_ZLIB], [1], [Define to 1 if building with zlib.])])])
+
+DX_ENABLE_WRAPPERS
 
 # Dennix currently does not implement fchown.
 AC_CHECK_FUNCS([fchown])

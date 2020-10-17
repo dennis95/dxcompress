@@ -20,7 +20,6 @@ CFLAGS = @CFLAGS@
 CPPFLAGS = @CPPFLAGS@ -I.
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-SED = @SED@
 
 prefix = @prefix@
 exec_prefix = @exec_prefix@
@@ -32,17 +31,15 @@ man1dir = $(mandir)/man1
 cross_compiling = @cross_compiling@
 
 OBJ = deflate.o lzw.o main.o xz.o
+WRAPPERS = @WRAPPERS@
 
-all: compress uncompress zcat
+all: compress $(WRAPPERS)
 
 compress: $(OBJ)
 	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
 
-uncompress: uncompress.in Makefile
-	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' $(srcdir)/uncompress.in > uncompress
-
-zcat: zcat.in Makefile
-	$(SED) 's,[@]COMPRESS[@],$(bindir)/compress,g' $(srcdir)/zcat.in > zcat
+$(WRAPPERS): make-wrappers.sh Makefile
+	$(srcdir)/make-wrappers.sh $(bindir)/compress $(WRAPPERS)
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
@@ -63,13 +60,18 @@ install-data: install-man
 install-man:
 	install -Dm644 $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/compress.1
 
-install-exec: compress uncompress zcat
+install-exec: install-compress install-wrappers
+install-compress: compress
 	install -D compress $(DESTDIR)$(bindir)/compress
-	install -D uncompress $(DESTDIR)$(bindir)/uncompress
-	install -D zcat $(DESTDIR)$(bindir)/zcat
+
+install-wrappers: $(WRAPPERS)
+	for wrapper in $(WRAPPERS); do \
+		install -D $$wrapper $(DESTDIR)$(bindir)/$$wrapper; \
+	done
 
 clean:
-	rm -f compress uncompress zcat $(OBJ)
+	rm -f compress $(OBJ)
+	rm -f uncompress zcat gzip gunzip xz unxz xzcat
 	rm -rf tests
 
 distclean: clean
@@ -77,4 +79,5 @@ distclean: clean
 	rm -f config.cache config.h config.h.in~ config.status config.log Makefile
 
 .PHONY: all check check-yes check-no clean distclean
-.PHONY: install install-data install-exec install-man
+.PHONY: install install-compress install-data install-exec install-man
+.PHONY: install-wrappers
