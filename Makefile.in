@@ -29,6 +29,7 @@ mandir = @mandir@
 man1dir = $(mandir)/man1
 
 cross_compiling = @cross_compiling@
+transform = @program_transform_name@
 
 OBJ = deflate.o lzw.o main.o xz.o
 WRAPPERS = @WRAPPERS@
@@ -39,7 +40,7 @@ compress: $(OBJ)
 	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
 
 $(WRAPPERS): make-wrappers.sh Makefile
-	$(srcdir)/make-wrappers.sh $(bindir)/compress $(WRAPPERS)
+	$(srcdir)/make-wrappers.sh $(bindir)/$$(echo compress | sed '$(transform)') $(WRAPPERS)
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
@@ -58,15 +59,15 @@ install: install-exec install-data
 
 install-data: install-man
 install-man:
-	install -Dm644 $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/compress.1
+	install -Dm644 $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
 
 install-exec: install-compress install-wrappers
 install-compress: compress
-	install -D compress $(DESTDIR)$(bindir)/compress
+	install -D compress $(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')
 
 install-wrappers: $(WRAPPERS)
 	for wrapper in $(WRAPPERS); do \
-		install -D $$wrapper $(DESTDIR)$(bindir)/$$wrapper; \
+		install -D $$wrapper $(DESTDIR)$(bindir)/$$(echo $$wrapper | sed '$(transform)'); \
 	done
 
 clean:
