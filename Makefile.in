@@ -21,6 +21,13 @@ CPPFLAGS = @CPPFLAGS@ -I.
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 
+INSTALL = @INSTALL@
+INSTALL_DATA = @INSTALL_DATA@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+install_sh = $(srcdir)/install-sh
+STRIP = @STRIP@
+
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = @bindir@
@@ -48,27 +55,49 @@ $(WRAPPERS): make-wrappers.sh Makefile
 $(OBJ): algorithm.h config.h Makefile
 
 check: check-$(cross_compiling)
-
 check-yes:
 	@echo "Cannot run tests when cross-compiling."
 
 check-no: compress
 	COMPRESS='$(PWD)/compress' $(srcdir)/test-compress.sh
 
-install: install-exec install-data
+installcheck: installcheck-$(cross_compiling)
+installcheck-yes:
+	@echo "Cannot run tests when cross-compiling."
 
+installcheck-no:
+	COMPRESS=$(bindir)/$$(echo compress | sed '$(transform)') \
+	UNCOMPRESS=$(bindir)/$$(echo uncompress | sed '$(transform)') \
+	$(srcdir)/test-compress.sh
+
+install: install-exec install-data
 install-data: install-man
 install-man:
-	install -Dm644 $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
+	mkdir -p $(DESTDIR)$(man1dir)
+	$(INSTALL_DATA) $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
 
 install-exec: install-compress install-wrappers
 install-compress: compress
-	install -D compress $(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')
+	mkdir -p $(DESTDIR)$(bindir)
+	$(INSTALL_PROGRAM) compress $(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')
 
 install-wrappers: $(WRAPPERS)
+	mkdir -p $(DESTDIR)$(bindir)
 	for wrapper in $(WRAPPERS); do \
-		install -D $$wrapper $(DESTDIR)$(bindir)/$$(echo $$wrapper | sed '$(transform)'); \
+		$(INSTALL_SCRIPT) $$wrapper $(DESTDIR)$(bindir)/$$(echo $$wrapper | sed '$(transform)'); \
 	done
+
+install-strip: install-strip-exec install-data
+install-strip-exec: install-strip-compress install-wrappers
+install-strip-compress: compress
+	mkdir -p $(DESTDIR)$(bindir)
+	STRIPPROG=$(STRIP) $(install_sh) -s compress $(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')
+
+uninstall:
+	for prog in compress $(WRAPPERS); do \
+		rm -f $(DESTDIR)$(bindir)/$$(echo $$prog | sed '$(transform)'); \
+	done
+	rm -f $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
 
 clean:
 	rm -f compress $(OBJ)
@@ -79,6 +108,7 @@ distclean: clean
 	rm -rf autom4te.cache
 	rm -f config.cache config.h config.h.in~ config.status config.log Makefile
 
-.PHONY: all check check-yes check-no clean distclean
+.PHONY: all check check-yes check-no installcheck installcheck-yes
+.PHONY: installcheck-no uninstall clean distclean
 .PHONY: install install-compress install-data install-exec install-man
-.PHONY: install-wrappers
+.PHONY: install-wrappers install-strip install-strip-compress install-strip-exec

@@ -12,6 +12,9 @@ AC_PROG_CC
 AC_USE_SYSTEM_EXTENSIONS
 AC_SYS_LARGEFILE
 
+AC_PROG_INSTALL
+AC_CHECK_TOOL([STRIP], [strip], [:])
+
 AC_ARG_WITH([liblzma], [AS_HELP_STRING([--without-liblzma],
  [disable xz support through liblzma])], [], [with_liblzma=yes])
 AS_IF([test "$with_liblzma" != no],
