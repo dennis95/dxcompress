@@ -38,7 +38,15 @@ man1dir = $(mandir)/man1
 cross_compiling = @cross_compiling@
 transform = @program_transform_name@
 
-OBJ = deflate.o lzw.o main.o xz.o
+SRC = deflate.c lzw.c main.c xz.c
+OBJ = $(SRC:%.c=%.o)
+distdir = @PACKAGE_NAME@-@PACKAGE_VERSION@
+DISTFILES = $(SRC) algorithm.h compress.1 \
+	m4/ m4/check-cflags.m4 m4/pkg-config.m4 m4/wrappers.m4 \
+	.gitignore .travis.yml \
+	configure.ac configure config.h.in Makefile.in install-sh \
+	autogen.sh make-wrappers.sh test-compress.sh \
+	LICENSE
 WRAPPERS = @WRAPPERS@
 
 all: compress $(WRAPPERS)
@@ -70,6 +78,41 @@ installcheck-no:
 	UNCOMPRESS=$(bindir)/$$(echo uncompress | sed '$(transform)') \
 	$(srcdir)/test-compress.sh
 
+# Of course we want to use our own implementation to compress the tarballs!
+dist: dist-$(cross_compiling)
+dist-no: compress
+	rm -rf $(distdir)
+	mkdir $(distdir)
+	for file in $(DISTFILES); do \
+		case $$file in \
+		*/) mkdir -p $(distdir)/$$file ;; \
+		*) cp $(srcdir)/$$file $(distdir)/$$file; \
+		esac; \
+	done
+	tar cf $(distdir).tar $(distdir)
+	for algo in lzw gzip xz; do \
+		./compress -fkv -m $$algo $(distdir).tar; \
+	done
+	rm -rf $(distdir) $(distdir).tar
+
+dist-yes:
+	@echo "Please configure with build = host before running '$(MAKE) dist'."
+	@false
+
+distcheck: dist
+	rm -rf distcheck
+	mkdir -p distcheck/build
+	cd distcheck && tar xf ../$(distdir).tar.xz && chmod -R a-w $(distdir) && \
+	cd build && ../$(distdir)/configure --prefix=$(PWD)/distcheck/install && \
+	$(MAKE) && $(MAKE) check && \
+	$(MAKE) install && $(MAKE) installcheck && \
+	$(MAKE) uninstall && ! find $(PWD)/distcheck/install -type f | grep . && \
+	$(MAKE) dist && rm -f $(distdir).tar.* && \
+	$(MAKE) distclean && ! find $(PWD)/distcheck/build -type f | grep .
+	chmod -R +w distcheck
+	rm -rf distcheck
+	@echo "Files are ready for distribution."
+
 install: install-exec install-data
 install-data: install-man
 install-man:
@@ -100,7 +143,7 @@ uninstall:
 	rm -f $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
 
 clean:
-	rm -f compress $(OBJ)
+	rm -f compress *.o
 	rm -f uncompress zcat gzip gunzip xz unxz xzcat
 	rm -rf tests
 
@@ -108,7 +151,7 @@ distclean: clean
 	rm -rf autom4te.cache
 	rm -f config.cache config.h config.h.in~ config.status config.log Makefile
 
-.PHONY: all check check-yes check-no installcheck installcheck-yes
-.PHONY: installcheck-no uninstall clean distclean
+.PHONY: all check check-yes check-no dist dist-yes dist-no distcheck
+.PHONY: installcheck installcheck-yes installcheck-no uninstall clean distclean
 .PHONY: install install-compress install-data install-exec install-man
 .PHONY: install-wrappers install-strip install-strip-compress install-strip-exec

@@ -21,4 +21,7 @@ unxz
 xzcat
 *.o
 *.Z
+distcheck/
+dxcompress-*/
+dxcompress-*.tar*
 tests/
