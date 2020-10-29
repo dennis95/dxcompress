@@ -55,7 +55,7 @@ compress: $(OBJ)
 	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
 
 $(WRAPPERS): make-wrappers.sh Makefile
-	$(srcdir)/make-wrappers.sh $(bindir)/$$(echo compress | sed '$(transform)') $(WRAPPERS)
+	$(srcdir)/make-wrappers.sh $(bindir)/$$(echo compress | sed '$(transform)') $@
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
