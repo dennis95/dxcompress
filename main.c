@@ -757,7 +757,8 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 fputs("OK", stderr);
             }
             if (output != 1 && output != -1) {
-                fprintf(stderr, " - replaced with '%s%s%s'",
+                fprintf(stderr, " - %s '%s%s%s'",
+                        input != 1 && !keep ? "replaced with" : "created",
                         dirPath ? dirPath : "", dirPath ? "/" : "", outputName);
             }
             fputc('\n', stderr);
