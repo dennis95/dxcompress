@@ -53,7 +53,7 @@ static bool getConfirmation(const char* dirPath, const char* filename);
 static bool hasSuffix(const char* string, const char* suffix);
 static const struct algorithm* handleExtensions(const char* filename,
         const char** inputName, const char** outputName, char** allocatedName);
-static void list(const struct fileinfo* info);
+static void list(const struct fileinfo* info, const char* dirPath);
 static int nullDecompress(int input, int output, struct fileinfo* info,
         const unsigned char* buffer, size_t bufferSize);
 static void outOfMemory(void);
@@ -380,7 +380,7 @@ static bool hasSuffix(const char* string, const char* suffix) {
     return strcmp(string + (length - suffixLength), suffix) == 0;
 }
 
-static void list(const struct fileinfo* info) {
+static void list(const struct fileinfo* info, const char* dirPath) {
     if (verbose) {
         size_t nameLength = strcspn(algorithm->names, ",");
         printf("%-7.*s ", (int) nameLength, algorithm->names);
@@ -398,6 +398,9 @@ static void list(const struct fileinfo* info) {
     double ratio = 1.0 - (double) info->compressedSize /
             (double) info->uncompressedSize;
     printf("%4.1f%%  ", ratio * 100.0);
+    if (dirPath) {
+        printf("%s/", dirPath);
+    }
     printf("%s\n", info->name);
 }
 
@@ -743,7 +746,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
                 nameReplaced = true;
             }
 
-            list(&info);
+            list(&info, dirPath);
             if (nameReplaced) info.name = NULL;
         } else if (verbose) {
             if (mode == MODE_DECOMPRESS) {
