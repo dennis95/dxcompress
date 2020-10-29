@@ -712,14 +712,15 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
 
     if (output != 1 && output != -1 && status == 1) {
         unlinkat(dirFd, outputName, 0);
-    } else if (output != 1 && ratio < 0.0 && !force && mode == MODE_COMPRESS) {
+    } else if (input != 0 && output != 1 && ratio < 0.0 && !force &&
+            mode == MODE_COMPRESS) {
         unlinkat(dirFd, outputName, 0);
         if (verbose) {
             fprintf(stderr, "No compression - file unchanged\n");
         }
         status = 2;
     } else if (status == 0) {
-        if (input != 1 && output != 1 && output != -1 && !keep &&
+        if (input != 0 && output != 1 && output != -1 && !keep &&
                 unlinkat(dirFd, inputName, 0) < 0 && errno == EPERM) {
             if (!quiet || !force) {
                 printWarning("cannot unlink '%s': %s", inputPath,
@@ -758,7 +759,7 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
             }
             if (output != 1 && output != -1) {
                 fprintf(stderr, " - %s '%s%s%s'",
-                        input != 1 && !keep ? "replaced with" : "created",
+                        input != 0 && !keep ? "replaced with" : "created",
                         dirPath ? dirPath : "", dirPath ? "/" : "", outputName);
             }
             fputc('\n', stderr);

@@ -390,6 +390,14 @@ test ! -e bar || fail $LINENO "Wrong output file was created"
 test -e foo || fail $LINENO "Output file was not created"
 rm -f foo foo.Z bar bar.Z
 
+# Test -o with piped input
+compressibleFile | compress -o foo.Z || fail $LINENO "Compression failed"
+test -e foo.Z || fail $LINENO "Output file was not created"
+rm -f foo.Z
+incompressibleFile | compress -o foo.Z || fail $LINENO "Compression failed"
+test -e foo.Z || fail $LINENO "Output file was not created"
+rm -f foo.Z
+
 # Check compression with -S
 compressibleFile > foo
 compress -S .bar foo || fail $LINENO "Compression with -S failed"
