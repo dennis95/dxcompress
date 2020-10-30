@@ -46,7 +46,7 @@ DISTFILES = $(SRC) algorithm.h compress.1 \
 	.gitignore .travis.yml \
 	configure.ac configure config.h.in Makefile.in install-sh \
 	autogen.sh make-wrappers.sh test-compress.sh \
-	LICENSE
+	LICENSE README.md
 WRAPPERS = @WRAPPERS@
 
 all: compress $(WRAPPERS)
