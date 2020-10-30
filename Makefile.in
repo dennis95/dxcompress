@@ -55,7 +55,7 @@ compress: $(OBJ)
 	$(CC) $(LDFLAGS) -o compress $(OBJ) $(LIBS)
 
 $(WRAPPERS): make-wrappers.sh Makefile
-	$(srcdir)/make-wrappers.sh $(bindir)/$$(echo compress | sed '$(transform)') $@
+	$(srcdir)/make-wrappers.sh "$(bindir)/$$(echo compress | sed '$(transform)')" $@
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
@@ -74,8 +74,8 @@ installcheck-yes:
 	@echo "Cannot run tests when cross-compiling."
 
 installcheck-no:
-	COMPRESS=$(bindir)/$$(echo compress | sed '$(transform)') \
-	UNCOMPRESS=$(bindir)/$$(echo uncompress | sed '$(transform)') \
+	COMPRESS="$(bindir)/$$(echo compress | sed '$(transform)')" \
+	UNCOMPRESS="$(bindir)/$$(echo uncompress | sed '$(transform)')" \
 	$(srcdir)/test-compress.sh
 
 # Of course we want to use our own implementation to compress the tarballs!
@@ -116,31 +116,31 @@ distcheck: dist
 install: install-exec install-data
 install-data: install-man
 install-man:
-	mkdir -p $(DESTDIR)$(man1dir)
-	$(INSTALL_DATA) $(srcdir)/compress.1 $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
+	mkdir -p '$(DESTDIR)$(man1dir)'
+	$(INSTALL_DATA) $(srcdir)/compress.1 "$(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1"
 
 install-exec: install-compress install-wrappers
 install-compress: compress
-	mkdir -p $(DESTDIR)$(bindir)
-	$(INSTALL_PROGRAM) compress $(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')
+	mkdir -p '$(DESTDIR)$(bindir)'
+	$(INSTALL_PROGRAM) compress "$(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')"
 
 install-wrappers: $(WRAPPERS)
-	mkdir -p $(DESTDIR)$(bindir)
+	mkdir -p '$(DESTDIR)$(bindir)'
 	for wrapper in $(WRAPPERS); do \
-		$(INSTALL_SCRIPT) $$wrapper $(DESTDIR)$(bindir)/$$(echo $$wrapper | sed '$(transform)'); \
+		$(INSTALL_SCRIPT) $$wrapper "$(DESTDIR)$(bindir)/$$(echo $$wrapper | sed '$(transform)')"; \
 	done
 
 install-strip: install-strip-exec install-data
 install-strip-exec: install-strip-compress install-wrappers
 install-strip-compress: compress
-	mkdir -p $(DESTDIR)$(bindir)
-	STRIPPROG=$(STRIP) $(install_sh) -s compress $(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')
+	mkdir -p '$(DESTDIR)$(bindir)'
+	STRIPPROG='$(STRIP)' $(install_sh) -s compress "$(DESTDIR)$(bindir)/$$(echo compress | sed '$(transform)')"
 
 uninstall:
 	for prog in compress $(WRAPPERS); do \
-		rm -f $(DESTDIR)$(bindir)/$$(echo $$prog | sed '$(transform)'); \
+		rm -f "$(DESTDIR)$(bindir)/$$(echo $$prog | sed '$(transform)')"; \
 	done
-	rm -f $(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1
+	rm -f "$(DESTDIR)$(man1dir)/$$(echo compress | sed '$(transform)').1"
 
 clean:
 	rm -f compress *.o
