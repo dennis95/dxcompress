@@ -1,4 +1,4 @@
-.Dd October 16, 2020
+.Dd October 30, 2020
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -212,8 +212,8 @@ option.
 .It crc
 The 32-bit CRC (cyclic redundancy code) of the uncompressed data, if it is saved
 within the compressed file.
-For algorithms (like LZW) that do not save a CRC, this value is printed as
-ffffffff.
+For algorithms other than DEFLATE, this value is printed as
+.Li ffffffff .
 .It date , time
 The modification date and time of the compressed data.
 If the
@@ -342,7 +342,9 @@ appeared in
 .Ox 2.1
 in 1997.
 .Pp
-The implementation documented in this manual page began development in 2020 with
-the goal of creating a modern
+dxcompress 1.0 (released in 2020) was the first
 .Nm
-implementation that conforms to the new requirements of POSIX.1-202x draft 1.
+implementation that implemented all new requirements from POSIX.1-202x draft 1.
+It was also the first
+.Nm
+implementation that supported XZ compression.
