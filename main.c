@@ -91,6 +91,7 @@ int main(int argc, char* argv[]) {
 
     struct option longopts[] = {
         { "argv0", required_argument, 0, 1 },
+        { "ascii", no_argument, 0, 'a' },
         { "best", no_argument, &level, -3 },
         { "decompress", no_argument, 0, 'd' },
         { "fast", no_argument, &level, -2 },
@@ -115,7 +116,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "0123456789b:cdfghklm:nNo:OqrS:tvV";
+    const char* opts = "0123456789ab:cdfghklm:nNo:OqrS:tvV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 1: // undocumented --argv0 option for internal use only
@@ -125,6 +126,8 @@ int main(int argc, char* argv[]) {
         case '7': case '8': case '9':
             level = c - '0';
             if (!algorithmName) algorithmName = "gzip";
+            break;
+        case 'a': // ignored for compatibility with gzip
             break;
         case 'b': {
             char* end;
