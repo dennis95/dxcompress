@@ -16,16 +16,17 @@ AC_PROG_INSTALL
 AC_CHECK_TOOL([STRIP], [strip], [:])
 
 AC_ARG_WITH([liblzma], [AS_HELP_STRING([--without-liblzma],
- [disable xz support through liblzma])], [], [with_liblzma=yes])
+    [disable xz support through liblzma])], [], [with_liblzma=yes])
 AS_IF([test "$with_liblzma" != no],
-[DX_PKG_CONFIG_LIB([liblzma],
- [AC_DEFINE([WITH_LIBLZMA], [1], [Define to 1 if building with liblzma.])])])
+    [DX_PKG_CONFIG_LIB([liblzma],
+        [AC_DEFINE([WITH_LIBLZMA], [1], [Define to 1 if building with liblzma.])
+])])
 
 AC_ARG_WITH([zlib], [AS_HELP_STRING([--without-zlib],
- [disable gzip support through zlib])], [], [with_zlib=yes])
+    [disable gzip support through zlib])], [], [with_zlib=yes])
 AS_IF([test "$with_zlib" != no],
-[DX_PKG_CONFIG_LIB([zlib],
- [AC_DEFINE([WITH_ZLIB], [1], [Define to 1 if building with zlib.])])])
+    [DX_PKG_CONFIG_LIB([zlib],
+        [AC_DEFINE([WITH_ZLIB], [1], [Define to 1 if building with zlib.])])])
 
 DX_ENABLE_WRAPPERS
 
