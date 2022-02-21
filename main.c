@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 Dennis Wölfing
+/* Copyright (c) 2020, 2022 Dennis Wölfing
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -687,13 +687,12 @@ static int processFile(int dirFd, const char* inputName, const char* outputName,
         }
         status = 1;
     } else if (input != 0 && output != 1 && output != -1) {
-#if HAVE_FCHOWN
         if (fchown(output, inputStat.st_uid, inputStat.st_gid) < 0 && !quiet) {
             printWarning("cannot set ownership for '%s%s%s': %s",
                     dirPath ? dirPath : "", dirPath ? "/" : "", outputName,
                     strerror(errno));
         }
-#endif
+
         fchmod(output, inputStat.st_mode);
         struct timespec ts[2] = { inputStat.st_atim, inputStat.st_mtim };
         if (restoreName && (info.modificationTime.tv_sec != 0 ||

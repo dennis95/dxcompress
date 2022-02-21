@@ -29,9 +29,6 @@ AS_IF([test "$with_zlib" != no],
 
 DX_ENABLE_WRAPPERS
 
-# Dennix currently does not implement fchown.
-AC_CHECK_FUNCS([fchown])
-
 # Enable warnings on GCC.
 DX_CHECK_CFLAGS([-Wall])
 DX_CHECK_CFLAGS([-Wextra])
