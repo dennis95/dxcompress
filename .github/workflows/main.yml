@@ -1,0 +1,16 @@
+name: Continuous Integration
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install build dependencies
+        run: sudo apt-get -qy install autoconf liblzma-dev zlib1g-dev
+
+      - run: ./autogen.sh
+      - run: ./configure
+      - run: make
+      - run: make check
+      - run: make distcheck
