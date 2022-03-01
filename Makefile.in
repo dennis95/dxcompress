@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Dennis Wölfing
+# Copyright (c) 2020, 2022 Dennis Wölfing
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -43,7 +43,8 @@ OBJ = $(SRC:%.c=%.o)
 distdir = @PACKAGE_NAME@-@PACKAGE_VERSION@
 DISTFILES = $(SRC) algorithm.h compress.1 \
 	m4/ m4/check-cflags.m4 m4/pkg-config.m4 m4/wrappers.m4 \
-	.gitignore .travis.yml \
+	.gitignore \
+	.github/workflows/ .github/workflows/main.yml \
 	configure.ac configure config.h.in Makefile.in install-sh \
 	autogen.sh make-wrappers.sh test-compress.sh \
 	LICENSE README.md
