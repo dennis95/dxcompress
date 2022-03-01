@@ -76,6 +76,7 @@ static bool force = false;
 static const char* givenOutputName = NULL;
 static bool keep = false;
 static int level = -1;
+int maxThreads = -1;
 static int mode = MODE_COMPRESS;
 static bool restoreName = false;
 static bool saveName = true;
@@ -106,6 +107,7 @@ int main(int argc, char* argv[]) {
         { "stdout", no_argument, 0, 'c' },
         { "suffix", required_argument, 0, 'S' },
         { "test", no_argument, 0, 't' },
+        { "threads", required_argument, 0, 'T' },
         { "to-stdout", no_argument, 0, 'c' },
         { "uncompress", no_argument, 0, 'd' },
         { "verbose", no_argument, 0, 'v' },
@@ -116,7 +118,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "0123456789ab:cdfghklm:nNo:OqrS:tvV";
+    const char* opts = "0123456789ab:cdfghklm:nNo:OqrS:tT:vV";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 1: // undocumented --argv0 option for internal use only
@@ -169,6 +171,7 @@ int main(int argc, char* argv[]) {
 "  -r, --recursive          recursively (de)compress files in directories\n"
 "  -S, --suffix=SUFFIX      use SUFFIX as suffix for compressed files\n"
 "  -t, --test               check file integrity\n"
+"  -T, --threads=THREADS    use up to the given number of threads\n"
 "  -v, --verbose            print filenames and compression ratios\n"
 "  -V, --version            display version info\n",
 argv[0]);
@@ -210,6 +213,15 @@ argv[0]);
         case 't':
             mode = MODE_TEST;
             break;
+        case 'T': {
+            char* end;
+            unsigned long value = strtoul(optarg, &end, 10);
+            if (value > INT_MAX || *end) {
+                printWarning("invalid number of threads: '%s'", optarg);
+                return 1;
+            }
+            maxThreads = value;
+        } break;
         case 'v':
             quiet = false;
             verbose = true;

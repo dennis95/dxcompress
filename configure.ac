@@ -20,6 +20,7 @@ AC_ARG_WITH([liblzma], [AS_HELP_STRING([--without-liblzma],
 AS_IF([test "$with_liblzma" != no],
     [DX_PKG_CONFIG_LIB([liblzma],
         [AC_DEFINE([WITH_LIBLZMA], [1], [Define to 1 if building with liblzma.])
+        AC_CHECK_FUNCS([lzma_stream_encoder_mt])
 ])])
 
 AC_ARG_WITH([zlib], [AS_HELP_STRING([--without-zlib],

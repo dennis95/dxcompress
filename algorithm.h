@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 Dennis Wölfing
+/* Copyright (c) 2020, 2022 Dennis Wölfing
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -64,6 +64,8 @@ struct algorithm {
 extern const struct algorithm algoDeflate;
 extern const struct algorithm algoLzw;
 extern const struct algorithm algoXz;
+
+extern int maxThreads;
 
 int openOutputFile(const char* outputName, struct outputinfo* oinfo);
 ssize_t writeAll(int fd, const void* buffer, size_t size);

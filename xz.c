@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 Dennis Wölfing
+/* Copyright (c) 2020, 2022 Dennis Wölfing
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -49,10 +49,48 @@ static bool xzProbe(const unsigned char* buffer, size_t bufferSize) {
     return bufferSize >= 6 && memcmp(buffer, XZMAGIC, 6) == 0;
 }
 
+#if WITH_LIBLZMA
+static lzma_ret createEncoder(lzma_stream* stream, int level) {
+#if HAVE_LZMA_STREAM_ENCODER_MT
+    lzma_mt mt = {0};
+    mt.preset = level;
+    mt.check = LZMA_CHECK_CRC64;
+
+    if (maxThreads > 0) {
+        mt.threads = maxThreads;
+    } else {
+        mt.threads = lzma_cputhreads();
+    }
+
+    if (maxThreads == -1) {
+        // When the -T option was not given we still want to use multiple
+        // threads but we should limit the number of threads to avoid high
+        // memory usage. We try to limit our memory usage to one third of the
+        // available memory.
+        uint64_t memoryAvailable = lzma_physmem();
+        uint64_t memoryUsage = lzma_stream_encoder_mt_memusage(&mt);
+
+        while (memoryUsage > memoryAvailable / 3 && mt.threads > 1) {
+            mt.threads--;
+            memoryUsage = lzma_stream_encoder_mt_memusage(&mt);
+        }
+    }
+
+    if (mt.threads > 1) {
+        if (lzma_stream_encoder_mt(stream, &mt) == LZMA_OK) {
+            return LZMA_OK;
+        }
+    }
+#endif
+
+    return lzma_easy_encoder(stream, level, LZMA_CHECK_CRC64);
+}
+#endif
+
 static int xzCompress(int input, int output, int level, struct fileinfo* info) {
 #if WITH_LIBLZMA
     lzma_stream stream = LZMA_STREAM_INIT;
-    lzma_ret status = lzma_easy_encoder(&stream, level, LZMA_CHECK_CRC64);
+    lzma_ret status = createEncoder(&stream, level);
     if (status == LZMA_MEM_ERROR) return RESULT_OUT_OF_MEMORY;
     if (status != LZMA_OK) return RESULT_UNKNOWN_ERROR;
 

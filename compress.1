@@ -1,4 +1,4 @@
-.Dd October 30, 2020
+.Dd March 01, 2022
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -13,6 +13,7 @@
 .Op Fl m Ar algo
 .Op Fl o Ar filename
 .Op Fl S Ar suffix
+.Op Fl T Ar threads
 .Op Ar files...
 .Nm uncompress
 .Op Fl cfklnNqrtv
@@ -281,6 +282,23 @@ The algorithm for decompression is then determined by the file contents instead
 of by the suffix.
 .It Fl t , -test
 Test the integrity of compressed files without changing any files.
+.It Fl T Ar threads , Fl -threads Ns = Ns Ar threads
+Use up to
+.Ar threads
+threads for compression.
+Multithreading is currently only supported for XZ compression.
+When
+.Ar threads
+is 0
+.Nm
+will use one thread per CPU core.
+.Pp
+If the
+.Fl T
+option is not used
+.Nm
+will use a number of threads determined by the number of CPUs and the amount of
+available memory.
 .It Fl v , -verbose
 For each file print the size reduction or expansion of the file.
 Undo the effects of any previously specified
@@ -348,3 +366,7 @@ implementation that implemented all new requirements from POSIX.1-202x draft 1.
 It was also the first
 .Nm
 implementation that supported XZ compression.
+.Pp
+Support for multithreaded XZ compression and the
+.Fl T
+option were added in dxcompress 1.1.
