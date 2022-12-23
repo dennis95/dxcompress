@@ -1,5 +1,5 @@
 #! /bin/sh
-# Copyright (c) 2020 Dennis Wölfing
+# Copyright (c) 2020, 2022 Dennis Wölfing
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -493,6 +493,16 @@ do
     rm -f foo foo.xz
 done
 rm -f compare
+
+# Check the -z option
+compressibleFile > foo
+compress -d -z foo || fail $LINENO "Compression failed"
+test ! -e foo || fail $LINENO "Input file was not unlinked"
+test -e foo.Z || fail $LINENO "Output file was not created"
+compress -z -d foo.Z || fail $LINENO "Decompression failed"
+test -e foo || fail $LINENO "Output file was not created"
+test ! -e foo.Z || fail $LINENO "Input file was not unlinked"
+rm -f foo foo.Z
 
 fi # test_extensions
 

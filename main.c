@@ -94,6 +94,7 @@ int main(int argc, char* argv[]) {
         { "argv0", required_argument, 0, 1 },
         { "ascii", no_argument, 0, 'a' },
         { "best", no_argument, &level, -3 },
+        { "compress", no_argument, 0, 'z' },
         { "decompress", no_argument, 0, 'd' },
         { "fast", no_argument, &level, -2 },
         { "force", no_argument, 0, 'f' },
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
     const char* algorithmName = NULL;
 
     int c;
-    const char* opts = "0123456789ab:cdfghklm:nNo:OqrS:tT:vV";
+    const char* opts = "0123456789ab:cdfghklm:nNo:OqrS:tT:vVz";
     while ((c = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch (c) {
         case 1: // undocumented --argv0 option for internal use only
@@ -173,7 +174,8 @@ int main(int argc, char* argv[]) {
 "  -t, --test               check file integrity\n"
 "  -T, --threads=THREADS    use up to the given number of threads\n"
 "  -v, --verbose            print filenames and compression ratios\n"
-"  -V, --version            display version info\n",
+"  -V, --version            display version info\n"
+"  -z, --compress           compress files\n",
 argv[0]);
             return 0;
         case 'k':
@@ -229,6 +231,9 @@ argv[0]);
         case 'V':
             printf("%s (%s)\n", argv[0], PACKAGE_STRING);
             return 0;
+        case 'z':
+            mode = MODE_COMPRESS;
+            break;
         case '?':
             return 1;
         }

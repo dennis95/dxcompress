@@ -1,5 +1,5 @@
 #! /bin/sh
-# Copyright (c) 2020 Dennis Wölfing
+# Copyright (c) 2020, 2022 Dennis Wölfing
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -22,10 +22,10 @@ for wrapper; do
     uncompress) flags="-d" ;;
     zcat) flags="-cd" ;;
     gzip) flags="-g" ;;
-    gunzip) flags="-d" ;;
+    gunzip) flags="-dg" ;;
     xz) flags="-m xz" ;;
-    unxz) flags="-d" ;;
-    xzcat) flags="-cd" ;;
+    unxz) flags="-d -m xz" ;;
+    xzcat) flags="-cd -m xz" ;;
     *)
         echo "Unknown wrapper script: $wrapper"
         exit 1
