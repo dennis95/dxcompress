@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 Dennis Wölfing
+/* Copyright (c) 2020, 2023 Dennis Wölfing
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -163,6 +163,9 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
 
     bool endOfStream = false;
 
+    info->compressedSize = bufferSize + bytesRead;
+    info->uncompressedSize = 0;
+
     while (true) {
         if (output == -2 && header.done == 1) {
             output = openOutputFile((const char*) header.name, info->oinfo);
@@ -177,6 +180,7 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
                 inflateEnd(&stream);
                 return RESULT_WRITE_ERROR;
             }
+            info->uncompressedSize += sizeof(outputBuffer);
             stream.next_out = outputBuffer;
             stream.avail_out = sizeof(outputBuffer);
         }
@@ -187,6 +191,7 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
                 inflateEnd(&stream);
                 return RESULT_READ_ERROR;
             }
+            info->compressedSize += bytesRead;
             stream.next_in = inputBuffer;
             stream.avail_in = bytesRead;
         }
@@ -219,8 +224,7 @@ static int gzipDecompress(int input, int output, struct fileinfo* info,
         inflateEnd(&stream);
         return RESULT_WRITE_ERROR;
     }
-    info->compressedSize = stream.total_in;
-    info->uncompressedSize = stream.total_out;
+    info->uncompressedSize += sizeof(outputBuffer) - stream.avail_out;
     info->modificationTime.tv_sec = header.time;
     info->modificationTime.tv_nsec = 0;
     info->crc = stream.adler;
