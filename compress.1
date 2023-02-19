@@ -1,4 +1,4 @@
-.Dd December 23, 2022
+.Dd February 19, 2023
 .Dt COMPRESS 1
 .Os Dennix
 .Sh NAME
@@ -151,7 +151,7 @@ and
 support all options supported by
 .Nm .
 .Pp
-The following options are supported by
+The following additional options are supported by
 .Nm :
 .Bl -tag -width Ds
 .It Fl 0 , 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9
@@ -193,7 +193,7 @@ Always produce an output file even if compression does not result in a reduced
 size.
 Also overwrite existing output files without asking for confirmation.
 .Pp
-When used with the
+When used with both the
 .Fl c
 and
 .Fl d
@@ -328,7 +328,7 @@ The
 .Nm
 utility exits 0 if all input files were successfully compressed or decompressed.
 It exits 1 or >2 when an error occured.
-It exits 2 when at least one files was not compressed because compression would
+It exits 2 when at least one file was not compressed because compression would
 have resulted in an increase of size.
 .Pp
 .Ex -std uncompress zcat
@@ -352,8 +352,8 @@ are standardized.
 .Pp
 The next revision of the POSIX.1 standard will additionally standardize the
 .Fl dgm
-options, add the DEFLATE algorithm and allow 15 and 16 bits per code for the LZW
-algorithm.
+options, add the DEFLATE algorithm and require support for 15 and 16 bits per
+code for the LZW algorithm.
 .Pp
 All other options are extensions to the standard.
 .Pp
@@ -374,7 +374,8 @@ in 1997.
 .Pp
 dxcompress 1.0 (released in 2020) was the first
 .Nm
-implementation that implemented all new requirements from POSIX.1-202x draft 1.
+implementation that implemented all new requirements from the latest
+POSIX.1-202x drafts.
 It was also the first
 .Nm
 implementation that supported XZ compression.
@@ -382,3 +383,18 @@ implementation that supported XZ compression.
 Support for multithreaded XZ compression and the
 .Fl Tz
 options were added in dxcompress 1.1.
+.Sh BUGS
+The gzip format contains a timestamp field that cannot represent dates from the
+year 2038 on.
+The timestamp will be ignored when the date cannot be represented.
+.Pp
+When using the 9-bit LZW compression some codes will actually be stored as
+a 10-bit value with the most significant bit being unused.
+This is because of a bug in the original
+.Nm
+implementation that other implementations need to be compatible with.
+However some
+.Nm
+implementations are known to handle 9-bit compression incorrectly resulting in
+malformed files.
+Thus 9-bit LZW compression should not be used.

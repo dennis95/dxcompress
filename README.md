@@ -14,7 +14,7 @@ compression utilities.
 
 The `compress`, `uncompress`, and `zcat` utilities conform to the POSIX.1-2008
 standard. All additional functionality required by the upcoming POSIX.1-202x
-standard (as of draft 1) is also provided.
+standard is also provided.
 
 ## Building
 
