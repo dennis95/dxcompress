@@ -3,7 +3,7 @@ m4_include([m4/pkg-config.m4])
 m4_include([m4/wrappers.m4])
 
 AC_PREREQ([2.69])
-AC_INIT([dxcompress], [1.0])
+AC_INIT([dxcompress], [1.1])
 AC_CONFIG_SRCDIR([lzw.c])
 AC_CONFIG_HEADERS([config.h])
 AC_ARG_PROGRAM
