@@ -1,4 +1,4 @@
-/* Copyright (c) 2020, 2022, 2023 Dennis Wölfing
+/* Copyright (c) 2020, 2022, 2023, 2024 Dennis Wölfing
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -444,6 +444,16 @@ static int nullDecompress(int input, int output, struct fileinfo* info,
 
 int openOutputFile(const char* outputName, struct outputinfo* oinfo) {
     if (!outputName) outputName = oinfo->outputName;
+
+    if (strchr(outputName, '\n')) {
+        // Refuse to create files with newlines in their names as encouraged by
+        // POSIX.
+        printWarning("cannot create file '%s%s%s': Invalid filename",
+                oinfo->dirPath ? oinfo->dirPath : "", oinfo->dirPath ? "/" : "",
+                outputName);
+        return -1;
+    }
+
     if (force) {
         unlinkat(oinfo->dirFd, outputName, 0);
     }

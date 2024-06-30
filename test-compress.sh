@@ -1,5 +1,5 @@
 #! /bin/sh
-# Copyright (c) 2020, 2022 Dennis Wölfing
+# Copyright (c) 2020, 2022, 2024 Dennis Wölfing
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -503,6 +503,16 @@ compress -z -d foo.Z || fail $LINENO "Decompression failed"
 test -e foo || fail $LINENO "Output file was not created"
 test ! -e foo.Z || fail $LINENO "Input file was not unlinked"
 rm -f foo foo.Z
+
+# Check that compress refuses to create file containing a newline in its name
+compressibleFile > foo
+msg="$(compress -o 'foo
+bar.Z' foo 2>&1 >/dev/null)" && fail $LINENO "Compressing to file with invalid name succeeded"
+test -n "$msg" || fail $LINENO "Diagnostic message missing"
+test ! -e 'foo
+bar.Z' || fail $LINENO "File with invalid name was created"
+rm -f foo 'foo
+bar.Z'
 
 fi # test_extensions
 
